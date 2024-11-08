@@ -7,4 +7,4 @@ predictions_kitti/
 wandb/
 checkpoints/
 pretrained/
-
+cub-1.10.0/
