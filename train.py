@@ -130,7 +130,7 @@ def train(model, args, epochs=10, experiment_name="DeepLab", lr=0.0001, root="."
     ################################################################################################
 
     train_loader = DepthDataLoader(args, 'train').data
-    test_loader = DepthDataLoader(args, 'online_eval').data
+    test_loader = DepthDataLoader(args, 'eval').data
 
     ###################################### losses ##############################################
     criterion_ueff = SILogLoss()

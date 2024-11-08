@@ -47,16 +47,16 @@ def predict_tta(model, image, args):
     #     pred = utils.depth_norm(pred)
     #     pred = nn.functional.interpolate(pred, depth.shape[-2:], mode='bilinear', align_corners=True)
     #     pred = np.clip(pred.cpu().numpy(), 10, 1000)/100.
-    pred = np.clip(pred.cpu().numpy(), args.min_depth, args.max_depth)
+    pred = np.clip(pred.detach().cpu().numpy(), args.min_depth_eval, args.max_depth_eval)
 
-    image = torch.Tensor(np.array(image.cpu().numpy())[..., ::-1].copy()).to(device)
-
-    pred_lr = model(image)[-1]
-    #     pred_lr = utils.depth_norm(pred_lr)
-    #     pred_lr = nn.functional.interpolate(pred_lr, depth.shape[-2:], mode='bilinear', align_corners=True)
-    #     pred_lr = np.clip(pred_lr.cpu().numpy()[...,::-1], 10, 1000)/100.
-    pred_lr = np.clip(pred_lr.cpu().numpy()[..., ::-1], args.min_depth, args.max_depth)
-    final = 0.5 * (pred + pred_lr)
+    # image = torch.Tensor(np.array(image.detach().cpu().numpy())[..., ::-1].copy()).to(device)
+    # pred_lr = model(image)[-1]
+    # #     pred_lr = utils.depth_norm(pred_lr)
+    # #     pred_lr = nn.functional.interpolate(pred_lr, depth.shape[-2:], mode='bilinear', align_corners=True)
+    # #     pred_lr = np.clip(pred_lr.cpu().numpy()[...,::-1], 10, 1000)/100.
+    # pred_lr = np.clip(pred_lr.detach().cpu().numpy()[..., ::-1], args.min_depth_eval, args.max_depth_eval)
+    # final = 0.5 * (pred + pred_lr)
+    final = pred
     final = nn.functional.interpolate(torch.Tensor(final), image.shape[-2:], mode='bilinear', align_corners=True)
     return torch.Tensor(final)
 
@@ -87,8 +87,8 @@ def eval(model, test_loader, args, gpus=None, ):
 
             # final[final < args.min_depth] = args.min_depth
             # final[final > args.max_depth] = args.max_depth
-            final[np.isinf(final)] = args.max_depth
-            final[np.isnan(final)] = args.min_depth
+            final[np.isinf(final)] = args.max_depth_eval
+            final[np.isnan(final)] = args.min_depth_eval
 
             if args.save_dir is not None:
                 if args.dataset == 'nyu':
@@ -114,8 +114,8 @@ def eval(model, test_loader, args, gpus=None, ):
                     continue
 
             gt = gt.squeeze().cpu().numpy()
-            valid_mask = np.logical_and(gt > args.min_depth, gt < args.max_depth)
-
+            valid_mask = np.logical_and(gt > args.min_depth_eval, gt < args.max_depth_eval)
+            eval_mask = np.ones(valid_mask.shape)
             if args.garg_crop or args.eigen_crop:
                 gt_height, gt_width = gt.shape
                 eval_mask = np.zeros(valid_mask.shape)
@@ -149,7 +149,13 @@ def convert_arg_line_to_args(arg_line):
 
 
 if __name__ == '__main__':
-
+    import os
+    import debugpy
+    if os.environ.get("ENABLE_DEBUGPY"):
+        print("listening...")
+        debugpy.listen(("127.0.0.1", 5678))
+        debugpy.wait_for_client()
+        
     # Arguments
     parser = argparse.ArgumentParser(description='Model evaluator', fromfile_prefix_chars='@',
                                      conflict_handler='resolve')
@@ -158,40 +164,18 @@ if __name__ == '__main__':
                         help='number of bins/buckets to divide depth range into')
     parser.add_argument('--gpu', default=None, type=int, help='Which gpu to use')
     parser.add_argument('--save-dir', '--save_dir', default=None, type=str, help='Store predictions in folder')
-    parser.add_argument("--root", default=".", type=str,
-                        help="Root folder to save data in")
 
     parser.add_argument("--dataset", default='nyu', type=str, help="Dataset to train on")
-
-    parser.add_argument("--data_path", default='../dataset/nyu/sync/', type=str,
-                        help="path to dataset")
-    parser.add_argument("--gt_path", default='../dataset/nyu/sync/', type=str,
-                        help="path to dataset gt")
-
-    parser.add_argument('--filenames_file',
-                        default="./train_test_inputs/nyudepthv2_train_files_with_gt.txt",
-                        type=str, help='path to the filenames text file')
-
-    parser.add_argument('--input_height', type=int, help='input height', default=416)
-    parser.add_argument('--input_width', type=int, help='input width', default=544)
-    parser.add_argument('--max_depth', type=float, help='maximum depth in estimation', default=10)
-    parser.add_argument('--min_depth', type=float, help='minimum depth in estimation', default=1e-3)
-
-    parser.add_argument('--do_kb_crop', help='if set, crop input images as kitti benchmark images', action='store_true')
-
-    parser.add_argument('--data_path_eval',
-                        default="../dataset/nyu/official_splits/test/",
-                        type=str, help='path to the data for online evaluation')
-    parser.add_argument('--gt_path_eval', default="../dataset/nyu/official_splits/test/",
-                        type=str, help='path to the groundtruth data for online evaluation')
     parser.add_argument('--filenames_file_eval',
-                        default="./train_test_inputs/nyudepthv2_test_files_with_gt.txt",
+                        default="./kitti_eval.csv",
                         type=str, help='path to the filenames text file for online evaluation')
+    
     parser.add_argument('--checkpoint_path', '--checkpoint-path', type=str, required=True,
                         help="checkpoint file to use for prediction")
 
     parser.add_argument('--min_depth_eval', type=float, help='minimum depth for evaluation', default=1e-3)
     parser.add_argument('--max_depth_eval', type=float, help='maximum depth for evaluation', default=10)
+    
     parser.add_argument('--eigen_crop', help='if set, crops according to Eigen NIPS14', action='store_true')
     parser.add_argument('--garg_crop', help='if set, crops according to Garg  ECCV16', action='store_true')
     parser.add_argument('--do_kb_crop', help='Use kitti benchmark cropping', action='store_true')
@@ -206,10 +190,11 @@ if __name__ == '__main__':
     args.gpu = int(args.gpu) if args.gpu is not None else 0
     args.distributed = False
     device = torch.device('cuda:{}'.format(args.gpu))
-    test = DepthDataLoader(args, 'online_eval').data
-    model = UnetAdaptiveBins.build(n_bins=args.n_bins, min_val=args.min_depth, max_val=args.max_depth,
+    test = DepthDataLoader(args, 'eval').data
+    model = UnetAdaptiveBins.build(n_bins=args.n_bins, min_val=args.min_depth_eval, max_val=args.max_depth_eval,
                                    norm='linear').to(device)
     model = model_io.load_checkpoint(args.checkpoint_path, model)[0]
     model = model.eval()
 
-    eval(model, test, args, gpus=[device])
+    with torch.no_grad():
+        eval(model, test, args, gpus=[device])
