@@ -5,7 +5,7 @@ import csv
 split = 'val'
 assert split in ['train', 'val']
 raw_dir = Path("/mnt/remote/shared_data/datasets/kitti-depth/2011_09_26")
-gt_dir = Path("/mnt/remote/shared_data/datasets/avg-kitti")
+gt_dir = Path(f"/mnt/remote/shared_data/datasets/avg-kitti/{split}")
 raw_gt_pairs = []
 
 for sub_dir in gt_dir.iterdir():
