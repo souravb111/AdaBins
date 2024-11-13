@@ -123,18 +123,19 @@ class DataLoadPreprocess(Dataset):
             depth_gt = depth_gt[top_margin:top_margin + 352, left_margin:left_margin + 1216, :]
                 
         if self.mode == 'train':
-            # TODO: fix logic here
             # To avoid blank boundaries due to pixel registration
             if self.args.dataset == 'nyu':
                 depth_gt = depth_gt.crop((43, 45, 608, 472))
                 image = image.crop((43, 45, 608, 472))
+                self.image_height = 416
+                self.image_width = 544
 
             if self.args.do_random_rotate is True:
                 random_angle = (random.random() - 0.5) * 2 * self.args.degree
                 image = self.rotate_image(image, random_angle)
                 depth_gt = self.rotate_image(depth_gt, random_angle, flag=Image.NEAREST)
                 
-            image, depth_gt = self.random_crop(image, depth_gt, self.image_height, self.args.image_width)
+            # image, depth_gt = self.random_crop(image, depth_gt, self.image_height, self.args.image_width)
             image, depth_gt = self.train_preprocess(image, depth_gt)
             sample = {'image': raw_path, 'depth': gt_path, 'focal': focal}
         else:

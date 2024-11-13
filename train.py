@@ -180,9 +180,8 @@ def train(model, args, epochs=10, experiment_name="DeepLab", lr=0.0001, root="."
 
             img = batch['image'].to(device)
             depth = batch['depth'].to(device)
-            if 'has_valid_depth' in batch:
-                if not batch['has_valid_depth']:
-                    continue
+            if 'has_valid_depth' in batch and not batch['has_valid_depth']:
+                continue
 
             bin_edges, pred = model(img)
 
@@ -243,9 +242,8 @@ def validate(args, model, test_loader, criterion_ueff, epoch, epochs, device='cp
                 args) else test_loader:
             img = batch['image'].to(device)
             depth = batch['depth'].to(device)
-            if 'has_valid_depth' in batch:
-                if not batch['has_valid_depth']:
-                    continue
+            if 'has_valid_depth' in batch and not batch['has_valid_depth']:
+                continue
             depth = depth.squeeze().unsqueeze(0).unsqueeze(0)
             bins, pred = model(img)
 
@@ -357,7 +355,7 @@ if __name__ == '__main__':
                         type=str, help='path to the filenames text file for online evaluation')
 
     parser.add_argument('--min_depth_eval', type=float, help='minimum depth for evaluation', default=1e-3)
-    parser.add_argument('--max_depth_eval', type=float, help='maximum depth for evaluation', default=10)
+    parser.add_argument('--max_depth_eval', type=float, help='maximum depth for evaluation', default=100)
     parser.add_argument('--eigen_crop', default=True, help='if set, crops according to Eigen NIPS14',
                         action='store_true')
     parser.add_argument('--garg_crop', help='if set, crops according to Garg  ECCV16', action='store_true')
