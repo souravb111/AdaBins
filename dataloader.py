@@ -76,7 +76,7 @@ class DataLoadPreprocess(Dataset):
             filenames_file = args.filenames_file_eval
         else:
             filenames_file = args.filenames_file
-        with open(args.filenames_file_eval, 'r') as f:
+        with open(filenames_file, 'r') as f:
             raw_gt_tuples = f.readlines()
             raw_paths, gt_paths = zip(*[fn.split(',') for fn in raw_gt_tuples])
             self.raw_paths = [p.replace('\n', '') for p in raw_paths]

@@ -295,7 +295,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Training script. Default values of all arguments are recommended for reproducibility', fromfile_prefix_chars='@',
                                      conflict_handler='resolve')
     parser.convert_arg_line_to_args = convert_arg_line_to_args
-    parser.add_argument('--epochs', default=25, type=int, help='number of total epochs to run')
+    parser.add_argument('--epochs', default=4, type=int, help='number of total epochs to run')
     parser.add_argument('--n-bins', '--n_bins', default=256, type=int,
                         help='number of bins/buckets to divide depth range into')
     parser.add_argument('--lr', '--learning-rate', default=0.000357, type=float, help='max learning rate')
@@ -306,7 +306,7 @@ if __name__ == '__main__':
                         help="final div factor for lr")
 
     parser.add_argument('--bs', default=16, type=int, help='batch size')
-    parser.add_argument('--validate-every', '--validate_every', default=100, type=int, help='validation period')
+    parser.add_argument('--validate-every', '--validate_every', default=3000, type=int, help='validation period')
     parser.add_argument('--gpu', default=None, type=int, help='Which gpu to use')
     parser.add_argument("--name", default="UnetAdaptiveBins")
     parser.add_argument("--norm", default="linear", type=str, help="Type of norm/competition for bin-widths",
