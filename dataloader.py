@@ -102,16 +102,13 @@ class DataLoadPreprocess(Dataset):
         focal = float(Path(raw_path).stem)
 
         image = Image.open(raw_path)
-        image = np.asarray(image, dtype=np.float32) / 255.0
-        
         depth_gt = Image.open(gt_path)
-        depth_gt = np.asarray(depth_gt, dtype=np.float32)
-        depth_gt = np.expand_dims(depth_gt, axis=2)
-        depth_gt = depth_gt / self.depth_normalizer
 
         # Store the image height and width for later use
         if self.image_height is None:
-            self.image_height, self.image_width = image.shape[:2]
+            self.image_height = image.height
+            self.image_width = image.width
+            # self.image_height, self.image_width = image.shape[:2]
         
         if self.args.do_kb_crop is True:
             self.image_height = 352
@@ -136,9 +133,17 @@ class DataLoadPreprocess(Dataset):
                 depth_gt = self.rotate_image(depth_gt, random_angle, flag=Image.NEAREST)
                 
             # image, depth_gt = self.random_crop(image, depth_gt, self.image_height, self.args.image_width)
+            image = np.asarray(image, dtype=np.float32) / 255.0
+            depth_gt = np.asarray(depth_gt, dtype=np.float32)
+            depth_gt = np.expand_dims(depth_gt, axis=2)
+            depth_gt = depth_gt / self.depth_normalizer
             image, depth_gt = self.train_preprocess(image, depth_gt)
-            sample = {'image': raw_path, 'depth': gt_path, 'focal': focal}
+            sample = {'image': image, 'depth': depth_gt, 'focal': focal}
         else:
+            image = np.asarray(image, dtype=np.float32) / 255.0
+            depth_gt = np.asarray(depth_gt, dtype=np.float32)
+            depth_gt = np.expand_dims(depth_gt, axis=2)
+            depth_gt = depth_gt / self.depth_normalizer
             sample = {'image': image, 'depth': depth_gt, 'focal': focal, 'has_valid_depth': True,
                         'image_path': raw_path, 'depth_path': gt_path}
 
