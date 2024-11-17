@@ -314,7 +314,7 @@ if __name__ == '__main__':
 
 
     parser.add_argument('--bs', default=4, type=int, help='batch size')
-    parser.add_argument('--validate-every', '--validate_every', default=500, type=int, help='validation period')
+    parser.add_argument('--validate-every', '--validate_every', default=3000, type=int, help='validation period')
     parser.add_argument('--gpu', default=None, type=int, help='Which gpu to use')
     parser.add_argument("--name", default="UnetAdaptiveBins")
     parser.add_argument("--norm", default="linear", type=str, help="Type of norm/competition for bin-widths",
@@ -350,7 +350,7 @@ if __name__ == '__main__':
                         action='store_true')
 
     parser.add_argument('--filenames_file_eval',
-                        default="./process_nyu_data/nyu_depth_v2_val.csv",
+                        default="./process_nyu_data/nyu_depth_v2_mini_val.csv",
                         type=str, help='path to the filenames text file for online evaluation')
 
     parser.add_argument('--min_depth_eval', type=float, help='minimum depth for evaluation', default=1e-3)
