@@ -50,7 +50,7 @@ class DepthDataLoader(object):
                 self.eval_sampler = None
             self.data = DataLoader(self.testing_samples, 1,
                                    shuffle=False,
-                                   num_workers=1,
+                                   num_workers=8,
                                    pin_memory=False,
                                    sampler=self.eval_sampler)
 
@@ -90,7 +90,9 @@ class DataLoadPreprocess(Dataset):
         
         assert self.args.dataset in ['nyu', 'kitti']
         if self.args.dataset == 'nyu':
-            self.depth_normalizer = 1000.0
+            # NOTE(james) - the matlab script I borrowed dumps 16bit depth
+            # https://github.com/wangq95/NYUd2-Toolkit
+            self.depth_normalizer = 65535.0 # 1000
         elif self.args.dataset == 'kitti':
             self.depth_normalizer = 256.0
         else:
@@ -99,7 +101,8 @@ class DataLoadPreprocess(Dataset):
     def __getitem__(self, idx):
         raw_path = self.raw_paths[idx]
         gt_path = self.gt_paths[idx]
-        focal = float(Path(raw_path).stem)
+        # This param shouldn't matter
+        focal = 518. #float(Path(raw_path).stem)
 
         image = Image.open(raw_path)
         depth_gt = Image.open(gt_path)

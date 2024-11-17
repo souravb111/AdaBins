@@ -312,8 +312,9 @@ if __name__ == '__main__':
     parser.add_argument('--final-div-factor', '--final_div_factor', default=100, type=float,
                         help="final div factor for lr")
 
-    parser.add_argument('--bs', default=16, type=int, help='batch size')
-    parser.add_argument('--validate-every', '--validate_every', default=500, type=int, help='validation period') # 500
+
+    parser.add_argument('--bs', default=4, type=int, help='batch size')
+    parser.add_argument('--validate-every', '--validate_every', default=500, type=int, help='validation period')
     parser.add_argument('--gpu', default=None, type=int, help='Which gpu to use')
     parser.add_argument("--name", default="UnetAdaptiveBins")
     parser.add_argument("--norm", default="linear", type=str, help="Type of norm/competition for bin-widths",
@@ -332,7 +333,7 @@ if __name__ == '__main__':
     parser.add_argument("--dataset", default='nyu', type=str, help="Dataset to train on")
 
     parser.add_argument('--filenames_file',
-                        default="./train_test_inputs/nyudepthv2_train_files_with_gt.txt",
+                        default="./process_nyu_data/nyu_depth_v2_train.txt",
                         type=str, help='path to the filenames text file')
 
     parser.add_argument('--input_height', type=int, help='input height', default=416)
@@ -349,7 +350,7 @@ if __name__ == '__main__':
                         action='store_true')
 
     parser.add_argument('--filenames_file_eval',
-                        default="./train_test_inputs/nyudepthv2_test_files_with_gt.txt",
+                        default="./process_nyu_data/nyu_depth_v2_val.txt",
                         type=str, help='path to the filenames text file for online evaluation')
 
     parser.add_argument('--min_depth_eval', type=float, help='minimum depth for evaluation', default=1e-3)

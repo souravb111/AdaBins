@@ -67,7 +67,7 @@ def eval(model, test_loader, args, gpus=None, ):
     else:
         device = gpus[0]
 
-    if args.save_dir is not None:
+    if args.save_dir is not None and not os.path.isdir(args.save_dir):
         os.makedirs(args.save_dir)
 
     metrics = RunningAverageDict()
@@ -81,7 +81,7 @@ def eval(model, test_loader, args, gpus=None, ):
         for batch in tqdm(sequential):
 
             image = batch['image'].to(device)
-            gt = batch['depth'].to(device)
+            gt = batch['depth'].to(device) 
             final = predict_tta(model, image, args)
             final = final.squeeze().cpu().numpy()
 
@@ -90,10 +90,13 @@ def eval(model, test_loader, args, gpus=None, ):
             final[np.isinf(final)] = args.max_depth_eval
             final[np.isnan(final)] = args.min_depth_eval
 
+            if args.dataset == 'nyu':
+                gt *= args.max_depth_eval
+
             if args.save_dir is not None:
                 if args.dataset == 'nyu':
-                    impath = f"{batch['image_path'][0].replace('/', '__').replace('.jpg', '')}"
-                    factor = 1000
+                    impath = f"{batch['image_path'][0].replace('/', '__').replace('.jpg', '').replace('.png', '')}"
+                    factor = 1
                 else:
                     dpath = batch['image_path'][0].split('/')
                     impath = dpath[1] + "_" + dpath[-1]
@@ -104,8 +107,11 @@ def eval(model, test_loader, args, gpus=None, ):
                 # tf.ToPILImage()(denormalize(image.squeeze().unsqueeze(0).cpu()).squeeze()).save(rgb_path)
 
                 pred_path = os.path.join(args.save_dir, f"{impath}.png")
-                pred = (final * factor).astype('uint16')
-                Image.fromarray(pred).save(pred_path)
+                pred = (final * factor) # .astype('uint16')
+                pred_uint8 = ((pred / args.max_depth_eval) * 255).astype(np.uint8)
+                gt_uint8 = ((gt[0,:,:,0].cpu().numpy() / args.max_depth_eval) * 255).astype(np.uint8)
+                Image.fromarray(pred_uint8).save(pred_path)
+                Image.fromarray(gt_uint8).save(pred_path.replace("eval_out/", "eval_out/gt_"))
 
             if 'has_valid_depth' in batch:
                 if not batch['has_valid_depth']:
