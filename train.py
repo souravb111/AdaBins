@@ -202,7 +202,7 @@ def train(model, args, epochs=10, experiment_name="DeepLab", lr=0.0001, root="."
                 wandb.log({f"Train/{criterion_ueff.name}": l_dense.item()}, step=step)
                 wandb.log({f"Train/{criterion_bins.name}": l_chamfer.item()}, step=step)
 
-                if step % 100 == 0: # TODO can tune this
+                if step % 1000 == 0: # TODO can tune this
                     log_images(img.clone().cpu(), depth.clone().cpu(), pred.detach().clone().cpu(), args, step)
 
             step += 1
@@ -242,7 +242,6 @@ def validate(args, model, test_loader, criterion_ueff, epoch, epochs, device='cp
         val_si = RunningAverage()
         # val_bins = RunningAverage()
         metrics = utils.RunningAverageDict()
-        steps = 0
         for batch in tqdm(test_loader, desc=f"Epoch: {epoch + 1}/{epochs}. Loop: Validation") if is_rank_zero(
                 args) else test_loader:
             img = batch['image'].to(device)
@@ -286,9 +285,6 @@ def validate(args, model, test_loader, criterion_ueff, epoch, epochs, device='cp
                         eval_mask[45:471, 41:601] = 1
             valid_mask = np.logical_and(valid_mask, eval_mask)
             metrics.update(utils.compute_errors(gt_depth[valid_mask], pred[valid_mask]))
-            steps += 1
-            if steps > 100: 
-                break
 
         return metrics.get_value(), val_si
 
@@ -325,7 +321,7 @@ if __name__ == '__main__':
                         choices=['linear', 'softmax', 'sigmoid'])
     parser.add_argument("--same-lr", '--same_lr', default=False, action="store_true",
                         help="Use same LR for all param groups")
-    parser.add_argument("--distributed", default=True, action="store_true", help="Use DDP if set")
+    parser.add_argument("--distributed", default=False, action="store_true", help="Use DDP if set")
     parser.add_argument("--root", default=".", type=str,
                         help="Root folder to save data in")
     parser.add_argument("--resume", default='', type=str, help="Resume from checkpoint")
