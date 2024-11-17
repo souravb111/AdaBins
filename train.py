@@ -305,7 +305,7 @@ if __name__ == '__main__':
     parser.add_argument('--final-div-factor', '--final_div_factor', default=100, type=float,
                         help="final div factor for lr")
 
-    parser.add_argument('--bs', default=16, type=int, help='batch size')
+    parser.add_argument('--bs', default=4, type=int, help='batch size')
     parser.add_argument('--validate-every', '--validate_every', default=3000, type=int, help='validation period')
     parser.add_argument('--gpu', default=None, type=int, help='Which gpu to use')
     parser.add_argument("--name", default="UnetAdaptiveBins")
