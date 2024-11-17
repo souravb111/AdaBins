@@ -12,7 +12,7 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 
 KITTI_DEPTH_MIN = 1e-3
-KITTI_DEPTH_MAX = torch.inf
+KITTI_DEPTH_MAX = 256
 NYU_DEPTH_MIN = 1e-3
 NYU_DEPTH_MAX = 10
 
