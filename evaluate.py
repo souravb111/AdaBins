@@ -9,7 +9,7 @@ from PIL import Image
 from tqdm import tqdm
 
 import model_io
-from dataloader import DepthDataLoader
+from dataloader import DepthDataLoader, KITTI_DEPTH_MAX, KITTI_DEPTH_MIN, NYU_DEPTH_MAX, NYU_DEPTH_MIN
 from models import UnetAdaptiveBins
 from utils import RunningAverageDict
 
@@ -110,12 +110,6 @@ def eval(model, test_loader, args, gpus=None, ):
                 Image.fromarray(pred_uint8).save(pred_path)
                 Image.fromarray(gt_uint8).save(pred_path.replace("eval_out/", "eval_out/gt_"))
 
-            if 'has_valid_depth' in batch:
-                if not batch['has_valid_depth']:
-                    # print("Invalid ground truth")
-                    total_invalid += 1
-                    continue
-
             gt = gt.squeeze().cpu().numpy()
             valid_mask = np.logical_and(gt > args.min_depth_eval, gt < args.max_depth_eval)
             eval_mask = np.ones(valid_mask.shape)
@@ -175,9 +169,6 @@ if __name__ == '__main__':
     
     parser.add_argument('--checkpoint_path', '--checkpoint-path', type=str, required=True,
                         help="checkpoint file to use for prediction")
-
-    parser.add_argument('--min_depth_eval', type=float, help='minimum depth for evaluation', default=1e-3)
-    parser.add_argument('--max_depth_eval', type=float, help='maximum depth for evaluation', default=100)
     
     parser.add_argument('--eigen_crop', help='if set, crops according to Eigen NIPS14', action='store_true')
     parser.add_argument('--garg_crop', help='if set, crops according to Garg  ECCV16', action='store_true')
@@ -194,8 +185,13 @@ if __name__ == '__main__':
     args.distributed = False
     device = torch.device('cuda:{}'.format(args.gpu))
     test = DepthDataLoader(args, 'eval').data
-    model = UnetAdaptiveBins.build(n_bins=args.n_bins, min_val=args.min_depth_eval, max_val=args.max_depth_eval,
-                                   norm='linear').to(device)
+    if args.dataset == 'kitti':
+        args.min_depth, args.max_depth = KITTI_DEPTH_MIN, KITTI_DEPTH_MAX
+    elif args.dataset == 'nyu':
+        args.min_depth, args.max_depth = NYU_DEPTH_MIN, NYU_DEPTH_MAX
+    else:
+        raise NotImplementedError("Only KITTI and NYU are supported")
+    model = UnetAdaptiveBins.build(n_bins=args.n_bins, min_val=args.min_depth, max_val=args.max_depth, norm='linear').to(device)
     model = model_io.load_checkpoint(args.checkpoint_path, model)[0]
     model = model.eval()
 

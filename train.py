@@ -17,14 +17,17 @@ from tqdm import tqdm
 import model_io
 import models
 import utils
-from dataloader import DepthDataLoader
+from dataloader import DepthDataLoader, KITTI_DEPTH_MAX, KITTI_DEPTH_MIN, NYU_DEPTH_MAX, NYU_DEPTH_MIN
 from loss import SILogLoss, BinsChamferLoss
 from utils import RunningAverage, colorize
 
 # os.environ['WANDB_MODE'] = 'dryrun'
 PROJECT = "adabins"
 logging = True
-
+logging_print_interval = 5
+logging_vis_interval = 3000
+if os.environ.get("DISABLE_LOGGING"):
+    logging = False
 
 def is_rank_zero(args):
     return args.rank == 0
@@ -69,10 +72,7 @@ def main_worker(gpu, ngpus_per_node, args):
     args.gpu = gpu
 
     ###################################### Load model ##############################################
-
-    model = models.UnetAdaptiveBins.build(n_bins=args.n_bins, min_val=args.min_depth, max_val=args.max_depth,
-                                          norm=args.norm)
-
+    model = models.UnetAdaptiveBins.build(n_bins=args.n_bins, min_val=args.min_depth, max_val=args.max_depth, norm=args.norm)
     ################################################################################################
 
     if args.gpu is not None:  # If a gpu is set by user: NO PARALLELISM!!
@@ -120,8 +120,7 @@ def train(model, args, epochs=10, experiment_name="DeepLab", lr=0.0001, root="."
     run_id = f"{dt.now().strftime('%d-%h_%H-%M')}-nodebs{args.bs}-tep{epochs}-lr{lr}-wd{args.wd}-{uuid.uuid4()}"
     name = f"{experiment_name}" #_{run_id}"
     should_write = ((not args.distributed) or args.rank == 0)
-    # should_log = should_write and logging
-    should_log = True
+    should_log = should_write and logging
     if should_log:
         tags = args.tags.split(',') if args.tags != '' else None
         # if args.dataset != 'nyu':
@@ -181,13 +180,10 @@ def train(model, args, epochs=10, experiment_name="DeepLab", lr=0.0001, root="."
 
             img = batch['image'].to(device)
             depth = batch['depth'].to(device)
-            if 'has_valid_depth' in batch and not batch['has_valid_depth']:
-                continue
+            depth_mask = batch['depth_mask'].to(device)
 
             bin_edges, pred = model(img)
-
-            mask = depth > args.min_depth
-            l_dense = criterion_ueff(pred, depth, mask=mask.to(torch.bool), interpolate=True)
+            l_dense = criterion_ueff(pred, depth, mask=depth_mask.to(torch.bool), interpolate=True)
 
             if args.w_chamfer > 0:
                 l_chamfer = criterion_bins(bin_edges, depth)
@@ -198,18 +194,19 @@ def train(model, args, epochs=10, experiment_name="DeepLab", lr=0.0001, root="."
             loss.backward()
             nn.utils.clip_grad_norm_(model.parameters(), 0.1)  # optional
             optimizer.step()
-            if should_log and step % 5 == 0:
+            if should_log and step > 0 and step % logging_print_interval == 0:
                 wandb.log({f"Train/{criterion_ueff.name}": l_dense.item()}, step=step)
                 wandb.log({f"Train/{criterion_bins.name}": l_chamfer.item()}, step=step)
+                for j, lr in enumerate(scheduler.get_last_lr()):
+                    wandb.log({f"LR_{j}": lr})
 
-                if step % 1000 == 0: # TODO can tune this
+                if step % logging_vis_interval == 0: # TODO can tune this
                     log_images(img.clone().cpu(), depth.clone().cpu(), pred.detach().clone().cpu(), args, step)
 
             step += 1
             scheduler.step()
 
             ########################################################################################################
-
             if should_write and step % args.validate_every == 0:
 
                 ################################# Validation loop ##################################################
@@ -246,41 +243,41 @@ def validate(args, model, test_loader, criterion_ueff, epoch, epochs, device='cp
                 args) else test_loader:
             img = batch['image'].to(device)
             depth = batch['depth'].to(device) 
-            if 'has_valid_depth' in batch and not batch['has_valid_depth']:
-                continue
             depth = depth.squeeze().unsqueeze(0).unsqueeze(0)
+            depth_mask = batch['depth_mask'].to(device).squeeze(-1).unsqueeze(0)
             bins, pred = model(img)
 
-            mask = depth > args.min_depth
-            l_dense = criterion_ueff(pred, depth, mask=mask.to(torch.bool), interpolate=True)
+            l_dense = criterion_ueff(pred, depth, mask=depth_mask.to(torch.bool), interpolate=True)
             val_si.append(l_dense.item())
 
             pred = nn.functional.interpolate(pred, depth.shape[-2:], mode='bilinear', align_corners=True)
-
             pred = pred.squeeze().cpu().numpy()
-            pred[pred < args.min_depth_eval] = args.min_depth_eval
-            pred[pred > args.max_depth_eval] = args.max_depth_eval
-            pred[np.isinf(pred)] = args.max_depth_eval
-            pred[np.isnan(pred)] = args.min_depth_eval
+            pred[pred < test_loader.dataset.depth_min] = test_loader.dataset.depth_min
+            pred[pred > test_loader.dataset.depth_max] = test_loader.dataset.depth_max
+            pred[np.isinf(pred)] = test_loader.dataset.depth_max
+            pred[np.isnan(pred)] = test_loader.dataset.depth_min
 
             gt_depth = depth.squeeze().cpu().numpy()
-            valid_mask = np.logical_and(gt_depth > args.min_depth_eval, gt_depth < args.max_depth_eval)
-            if args.garg_crop or args.eigen_crop:
-                gt_height, gt_width = gt_depth.shape
-                eval_mask = np.zeros(valid_mask.shape)
+            gt_depth_mask = depth_mask.squeeze().cpu().numpy()
+            metrics.update(utils.compute_errors(gt_depth[gt_depth_mask], pred[gt_depth_mask]))
+            
+            # valid_mask = np.logical_and(gt_depth > args.min_depth_eval, gt_depth < args.max_depth_eval)
+            # if args.garg_crop or args.eigen_crop:
+            #     gt_height, gt_width = gt_depth.shape
+            #     eval_mask = np.zeros(valid_mask.shape)
 
-                if args.garg_crop:
-                    eval_mask[int(0.40810811 * gt_height):int(0.99189189 * gt_height),
-                    int(0.03594771 * gt_width):int(0.96405229 * gt_width)] = 1
+            #     if args.garg_crop:
+            #         eval_mask[int(0.40810811 * gt_height):int(0.99189189 * gt_height),
+            #         int(0.03594771 * gt_width):int(0.96405229 * gt_width)] = 1
 
-                elif args.eigen_crop:
-                    if args.dataset == 'kitti':
-                        eval_mask[int(0.3324324 * gt_height):int(0.91351351 * gt_height),
-                        int(0.0359477 * gt_width):int(0.96405229 * gt_width)] = 1
-                    else:
-                        eval_mask[45:471, 41:601] = 1
-            valid_mask = np.logical_and(valid_mask, eval_mask)
-            metrics.update(utils.compute_errors(gt_depth[valid_mask], pred[valid_mask]))
+            #     elif args.eigen_crop:
+            #         if args.dataset == 'kitti':
+            #             eval_mask[int(0.3324324 * gt_height):int(0.91351351 * gt_height),
+            #             int(0.0359477 * gt_width):int(0.96405229 * gt_width)] = 1
+            #         else:
+            #             eval_mask[45:471, 41:601] = 1
+            # valid_mask = np.logical_and(valid_mask, eval_mask)
+            # metrics.update(utils.compute_errors(gt_depth[valid_mask], pred[valid_mask]))
 
         return metrics.get_value(), val_si
 
@@ -293,7 +290,13 @@ def convert_arg_line_to_args(arg_line):
 
 
 if __name__ == '__main__':
-
+    import os
+    import debugpy
+    if os.environ.get("ENABLE_DEBUGPY"):
+        print("listening...")
+        debugpy.listen(("127.0.0.1", 5678))
+        debugpy.wait_for_client()
+        
     # Arguments
     parser = argparse.ArgumentParser(description='Training script. Default values of all arguments are recommended for reproducibility', fromfile_prefix_chars='@',
                                      conflict_handler='resolve')
@@ -307,7 +310,6 @@ if __name__ == '__main__':
     parser.add_argument('--div-factor', '--div_factor', default=25, type=float, help="Initial div factor for lr")
     parser.add_argument('--final-div-factor', '--final_div_factor', default=100, type=float,
                         help="final div factor for lr")
-
 
     parser.add_argument('--bs', default=4, type=int, help='batch size')
     parser.add_argument('--validate-every', '--validate_every', default=3000, type=int, help='validation period')
@@ -334,8 +336,6 @@ if __name__ == '__main__':
 
     parser.add_argument('--input_height', type=int, help='input height', default=416)
     parser.add_argument('--input_width', type=int, help='input width', default=544)
-    parser.add_argument('--max_depth', type=float, help='maximum depth in estimation', default=10)
-    parser.add_argument('--min_depth', type=float, help='minimum depth in estimation', default=1e-3)
 
     parser.add_argument('--do_random_rotate', default=True,
                         help='if set, will perform random rotation for augmentation',
@@ -349,8 +349,6 @@ if __name__ == '__main__':
                         default="./process_nyu_data/nyu_depth_v2_mini_val.csv",
                         type=str, help='path to the filenames text file for online evaluation')
 
-    parser.add_argument('--min_depth_eval', type=float, help='minimum depth for evaluation', default=1e-3)
-    parser.add_argument('--max_depth_eval', type=float, help='maximum depth for evaluation', default=10)
     parser.add_argument('--eigen_crop', default=True, help='if set, crops according to Eigen NIPS14',
                         action='store_true')
     parser.add_argument('--garg_crop', help='if set, crops according to Garg  ECCV16', action='store_true')
@@ -395,6 +393,13 @@ if __name__ == '__main__':
     args.num_workers = args.workers
     args.ngpus_per_node = ngpus_per_node
 
+    if args.dataset == 'kitti':
+        args.min_depth, args.max_depth = KITTI_DEPTH_MIN, KITTI_DEPTH_MAX
+    elif args.dataset == 'nyu':
+        args.min_depth, args.max_depth = NYU_DEPTH_MIN, NYU_DEPTH_MAX
+    else:
+        raise NotImplementedError("Only KITTI and NYU are supported")
+    
     if args.distributed:
         args.world_size = ngpus_per_node * args.world_size
         mp.spawn(main_worker, nprocs=ngpus_per_node, args=(ngpus_per_node, args))

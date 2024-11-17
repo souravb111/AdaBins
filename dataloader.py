@@ -11,6 +11,10 @@ from PIL import Image
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 
+KITTI_DEPTH_MIN = 0
+KITTI_DEPTH_MAX = torch.inf
+NYU_DEPTH_MIN = 0
+NYU_DEPTH_MAX = 10
 
 def _is_pil_image(img):
     return isinstance(img, Image.Image)
@@ -92,9 +96,14 @@ class DataLoadPreprocess(Dataset):
         if self.args.dataset == 'nyu':
             # NOTE(james) - the matlab script I borrowed dumps 16bit depth
             # https://github.com/wangq95/NYUd2-Toolkit
+            # NOTE(carter) - NYU preprocessing assigns max depth to invalid values
             self.depth_normalizer = 65535.0 / 10 # 1000
+            self.depth_min = NYU_DEPTH_MIN
+            self.depth_max = NYU_DEPTH_MAX
         elif self.args.dataset == 'kitti':
             self.depth_normalizer = 256.0
+            self.depth_min = KITTI_DEPTH_MIN
+            self.depth_max = KITTI_DEPTH_MAX
         else:
             raise NotImplementedError
 
@@ -113,42 +122,44 @@ class DataLoadPreprocess(Dataset):
             self.image_width = image.width
             # self.image_height, self.image_width = image.shape[:2]
         
-        if self.args.do_kb_crop is True:
-            self.image_height = 352
-            self.image_width = 1216
-            height, width = image.shape[:2]
-            top_margin = int(height - 352)
-            left_margin = int((width - 1216) / 2)
-            image = image[top_margin:top_margin + 352, left_margin:left_margin + 1216, :]
-            depth_gt = depth_gt[top_margin:top_margin + 352, left_margin:left_margin + 1216, :]
+        # if self.args.do_kb_crop is True:
+        #     self.image_height = 352
+        #     self.image_width = 1216
+        #     height, width = image.shape[:2]
+        #     top_margin = int(height - 352)
+        #     left_margin = int((width - 1216) / 2)
+        #     image = image[top_margin:top_margin + 352, left_margin:left_margin + 1216, :]
+        #     depth_gt = depth_gt[top_margin:top_margin + 352, left_margin:left_margin + 1216, :]
                 
         if self.mode == 'train':
-            # To avoid blank boundaries due to pixel registration
-            if self.args.dataset == 'nyu':
-                depth_gt = depth_gt.crop((43, 45, 608, 472))
-                image = image.crop((43, 45, 608, 472))
-                self.image_height = 416
-                self.image_width = 544
+            # TODO: re-enable with intrinsics compensation
+            # # To avoid blank boundaries due to pixel registration
+            # if self.args.dataset == 'nyu':
+            #     depth_gt = depth_gt.crop((43, 45, 608, 472))
+            #     image = image.crop((43, 45, 608, 472))
+            #     self.image_height = 416
+            #     self.image_width = 544
 
-            if self.args.do_random_rotate is True:
-                random_angle = (random.random() - 0.5) * 2 * self.args.degree
-                image = self.rotate_image(image, random_angle)
-                depth_gt = self.rotate_image(depth_gt, random_angle, flag=Image.NEAREST)
-                
+            # if self.args.do_random_rotate is True:
+            #     random_angle = (random.random() - 0.5) * 2 * self.args.degree
+            #     image = self.rotate_image(image, random_angle)
+            #     depth_gt = self.rotate_image(depth_gt, random_angle, flag=Image.NEAREST)
+
             # image, depth_gt = self.random_crop(image, depth_gt, self.image_height, self.args.image_width)
             image = np.asarray(image, dtype=np.float32) / 255.0
             depth_gt = np.asarray(depth_gt, dtype=np.float32)
             depth_gt = np.expand_dims(depth_gt, axis=2)
             depth_gt = depth_gt / self.depth_normalizer
+            depth_gt_mask = np.logical_and(depth_gt > self.depth_min, depth_gt < self.depth_max)
             image, depth_gt = self.train_preprocess(image, depth_gt)
-            sample = {'image': image, 'depth': depth_gt, 'focal': focal}
+            sample = {'image': image, 'depth': depth_gt, 'focal': focal, 'depth_mask': depth_gt_mask}
         else:
             image = np.asarray(image, dtype=np.float32) / 255.0
             depth_gt = np.asarray(depth_gt, dtype=np.float32)
             depth_gt = np.expand_dims(depth_gt, axis=2)
             depth_gt = depth_gt / self.depth_normalizer
-            sample = {'image': image, 'depth': depth_gt, 'focal': focal, 'has_valid_depth': True,
-                        'image_path': raw_path, 'depth_path': gt_path}
+            depth_gt_mask = np.logical_and(depth_gt > self.depth_min, depth_gt < self.depth_max)
+            sample = {'image': image, 'depth': depth_gt, 'focal': focal, 'image_path': raw_path, 'depth_path': gt_path, 'depth_mask': depth_gt_mask}
 
         if self.transform:
             sample = self.transform(sample)
@@ -171,11 +182,17 @@ class DataLoadPreprocess(Dataset):
         return img, depth
 
     def train_preprocess(self, image, depth_gt):
-        # Random flipping
-        do_flip = random.random()
-        if do_flip > 0.5:
-            image = (image[:, ::-1, :]).copy()
-            depth_gt = (depth_gt[:, ::-1, :]).copy()
+        """
+        Applies flipping and gamma/brightness/color augmentation. Flipping currently disabled for consistent intrinsics
+
+        Returns:
+            image_aug, depth_gt_aug
+        """
+        # # Random flipping
+        # do_flip = random.random()
+        # if do_flip > 0.5:
+        #     image = (image[:, ::-1, :]).copy()
+        #     depth_gt = (depth_gt[:, ::-1, :]).copy()
 
         # Random gamma, brightness, color augmentation
         do_augment = random.random()
@@ -222,14 +239,14 @@ class ToTensor(object):
         if self.mode == 'test':
             return {'image': image, 'focal': focal}
 
-        depth = sample['depth']
+        depth, depth_mask = sample['depth'], sample['depth_mask']
         if self.mode == 'train':
+            # TODO: why only in training?
             depth = self.to_tensor(depth)
-            return {'image': image, 'depth': depth, 'focal': focal}
+            depth_mask = self.to_tensor(depth_mask)
+            return {'image': image, 'depth': depth, 'focal': focal, 'depth_mask': depth_mask}
         else:
-            has_valid_depth = sample['has_valid_depth']
-            return {'image': image, 'depth': depth, 'focal': focal, 'has_valid_depth': has_valid_depth,
-                    'image_path': sample['image_path'], 'depth_path': sample['depth_path']}
+            return {'image': image, 'depth': depth, 'focal': focal, 'image_path': sample['image_path'], 'depth_path': sample['depth_path'], 'depth_mask': depth_mask}
 
     def to_tensor(self, pic):
         if not (_is_pil_image(pic) or _is_numpy_image(pic)):
