@@ -11,9 +11,9 @@ from PIL import Image
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 
-KITTI_DEPTH_MIN = 0
+KITTI_DEPTH_MIN = 1e-3
 KITTI_DEPTH_MAX = torch.inf
-NYU_DEPTH_MIN = 0
+NYU_DEPTH_MIN = 1e-3
 NYU_DEPTH_MAX = 10
 
 def _is_pil_image(img):
