@@ -5,6 +5,7 @@ import os
 DATA_DIR = "/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/"
 
 OUT_FILE = "nyu_depth_v2"
+MINI_VAL_FACTOR = 10
 
 scenes = os.listdir(DATA_DIR)
 
@@ -28,6 +29,10 @@ train_scenes = [s for s in scenes if s not in val_scenes]
 val_rgbd = [rgbd for scene in val_scenes for rgbd in synced_rgbd[scene]]
 train_rgbd = [rgbd for scene in train_scenes for rgbd in synced_rgbd[scene]]
 
+print(f"Saving {len(train_rgbd)} images to train split.")
+print(f"Saving {len(val_rgbd)} images to val split.")
+print(f"Saving {len(val_rgbd) // MINI_VAL_FACTOR} images to mini val split.")
+
 with open(f"{OUT_FILE}_val.csv", "w+") as f:
     for rgbd in val_rgbd:
         f.write(f"{rgbd[0]},{rgbd[1]}\n")
@@ -35,6 +40,11 @@ with open(f"{OUT_FILE}_val.csv", "w+") as f:
 with open(f"{OUT_FILE}_train.csv", "w+") as f:
     for rgbd in train_rgbd:
         f.write(f"{rgbd[0]},{rgbd[1]}\n")
+
+with open(f"{OUT_FILE}_mini_val.csv", "w+") as f:
+    for rgbd in val_rgbd[::MINI_VAL_FACTOR]:
+        f.write(f"{rgbd[0]},{rgbd[1]}\n")
+
 
 
 
