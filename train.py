@@ -246,7 +246,7 @@ def validate(args, model, test_loader, criterion_ueff, epoch, epochs, device='cp
         for batch in tqdm(test_loader, desc=f"Epoch: {epoch + 1}/{epochs}. Loop: Validation") if is_rank_zero(
                 args) else test_loader:
             img = batch['image'].to(device)
-            depth = batch['depth'].to(device)
+            depth = batch['depth'].to(device) 
             if 'has_valid_depth' in batch and not batch['has_valid_depth']:
                 continue
             depth = depth.squeeze().unsqueeze(0).unsqueeze(0)
@@ -265,6 +265,10 @@ def validate(args, model, test_loader, criterion_ueff, epoch, epochs, device='cp
             pred[np.isnan(pred)] = args.min_depth_eval
 
             gt_depth = depth.squeeze().cpu().numpy()
+            # NOTE(james) for NYU gt is in [0, 1] pred is in [0, 10]
+            if args.dataset == 'nyu':
+                assert args.max_depth_eval == 10
+                gt_depth *= args.max_depth_eval
             valid_mask = np.logical_and(gt_depth > args.min_depth_eval, gt_depth < args.max_depth_eval)
             if args.garg_crop or args.eigen_crop:
                 gt_height, gt_width = gt_depth.shape
@@ -333,7 +337,7 @@ if __name__ == '__main__':
     parser.add_argument("--dataset", default='nyu', type=str, help="Dataset to train on")
 
     parser.add_argument('--filenames_file',
-                        default="./process_nyu_data/nyu_depth_v2_train.txt",
+                        default="./process_nyu_data/nyu_depth_v2_train.csv",
                         type=str, help='path to the filenames text file')
 
     parser.add_argument('--input_height', type=int, help='input height', default=416)
@@ -350,11 +354,11 @@ if __name__ == '__main__':
                         action='store_true')
 
     parser.add_argument('--filenames_file_eval',
-                        default="./process_nyu_data/nyu_depth_v2_val.txt",
+                        default="./process_nyu_data/nyu_depth_v2_val.csv",
                         type=str, help='path to the filenames text file for online evaluation')
 
     parser.add_argument('--min_depth_eval', type=float, help='minimum depth for evaluation', default=1e-3)
-    parser.add_argument('--max_depth_eval', type=float, help='maximum depth for evaluation', default=100)
+    parser.add_argument('--max_depth_eval', type=float, help='maximum depth for evaluation', default=10)
     parser.add_argument('--eigen_crop', default=True, help='if set, crops according to Eigen NIPS14',
                         action='store_true')
     parser.add_argument('--garg_crop', help='if set, crops according to Garg  ECCV16', action='store_true')
