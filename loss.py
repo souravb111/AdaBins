@@ -20,7 +20,6 @@ class SILogLoss(nn.Module):  # Main loss function used in AdaBins paper
         # NOTE(james): hitting dome NaNs in NYU training
         # Possibly due to bad data with 0 depth, as SILOG loss does log(depth)
         # adding some masking and logging
-        print(f"Min pred depth {input.min().item()}")
         too_small = input < 1e-8
         # add instead of clip to enable grad flow
         input[too_small] = input[too_small] + 1e-8 
