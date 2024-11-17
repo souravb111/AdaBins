@@ -118,7 +118,7 @@ def train(model, args, epochs=10, experiment_name="DeepLab", lr=0.0001, root="."
     print(f"Training {experiment_name}")
 
     run_id = f"{dt.now().strftime('%d-%h_%H-%M')}-nodebs{args.bs}-tep{epochs}-lr{lr}-wd{args.wd}-{uuid.uuid4()}"
-    name = f"{experiment_name}_{run_id}"
+    name = f"{experiment_name}" #_{run_id}"
     should_write = ((not args.distributed) or args.rank == 0)
     # should_log = should_write and logging
     should_log = True
@@ -264,10 +264,6 @@ def validate(args, model, test_loader, criterion_ueff, epoch, epochs, device='cp
             pred[np.isnan(pred)] = args.min_depth_eval
 
             gt_depth = depth.squeeze().cpu().numpy()
-            # NOTE(james) for NYU gt is in [0, 1] pred is in [0, 10]
-            if args.dataset == 'nyu':
-                assert args.max_depth_eval == 10
-                gt_depth *= args.max_depth_eval
             valid_mask = np.logical_and(gt_depth > args.min_depth_eval, gt_depth < args.max_depth_eval)
             if args.garg_crop or args.eigen_crop:
                 gt_height, gt_width = gt_depth.shape

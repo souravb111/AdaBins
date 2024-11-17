@@ -90,9 +90,6 @@ def eval(model, test_loader, args, gpus=None, ):
             final[np.isinf(final)] = args.max_depth_eval
             final[np.isnan(final)] = args.min_depth_eval
 
-            if args.dataset == 'nyu':
-                gt *= args.max_depth_eval
-
             if args.save_dir is not None:
                 if args.dataset == 'nyu':
                     impath = f"{batch['image_path'][0].replace('/', '__').replace('.jpg', '').replace('.png', '')}"

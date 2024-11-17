@@ -92,7 +92,7 @@ class DataLoadPreprocess(Dataset):
         if self.args.dataset == 'nyu':
             # NOTE(james) - the matlab script I borrowed dumps 16bit depth
             # https://github.com/wangq95/NYUd2-Toolkit
-            self.depth_normalizer = 65535.0 # 1000
+            self.depth_normalizer = 65535.0 / 10 # 1000
         elif self.args.dataset == 'kitti':
             self.depth_normalizer = 256.0
         else:
