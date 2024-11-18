@@ -159,11 +159,12 @@ def train(model, args, epochs=10, experiment_name="DeepLab", lr=0.0001, root="."
     best_loss = np.inf
 
     ###################################### Scheduler ###############################################
-    scheduler = optim.lr_scheduler.OneCycleLR(optimizer, lr, epochs=epochs, steps_per_epoch=len(train_loader),
-                                              cycle_momentum=True,
-                                              base_momentum=0.85, max_momentum=0.95, last_epoch=args.last_epoch,
-                                              div_factor=args.div_factor,
-                                              final_div_factor=args.final_div_factor)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=len(train_loader) * epochs, eta_min=lr/100., last_epoch=args.last_epoch)
+    # scheduler = optim.lr_scheduler.OneCycleLR(optimizer, lr, epochs=epochs, steps_per_epoch=len(train_loader),
+    #                                           cycle_momentum=True,
+    #                                           base_momentum=0.85, max_momentum=0.95, last_epoch=args.last_epoch,
+    #                                           div_factor=args.div_factor,
+    #                                           final_div_factor=args.final_div_factor)
     if args.resume != '' and scheduler is not None:
         scheduler.step(args.epoch + 1)
     ################################################################################################
@@ -304,7 +305,7 @@ if __name__ == '__main__':
     parser.add_argument('--epochs', default=4, type=int, help='number of total epochs to run')
     parser.add_argument('--n-bins', '--n_bins', default=256, type=int,
                         help='number of bins/buckets to divide depth range into')
-    parser.add_argument('--lr', '--learning-rate', default=0.000357, type=float, help='max learning rate')
+    parser.add_argument('--lr', '--learning-rate', default=3e-5, type=float, help='max learning rate')
     parser.add_argument('--wd', '--weight-decay', default=0.1, type=float, help='weight decay')
     parser.add_argument('--w_chamfer', '--w-chamfer', default=0.1, type=float, help="weight value for chamfer loss")
     parser.add_argument('--div-factor', '--div_factor', default=25, type=float, help="Initial div factor for lr")
