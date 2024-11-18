@@ -3,6 +3,7 @@
 import os
 import random
 from pathlib import Path
+import yaml
 
 import numpy as np
 import torch
@@ -100,6 +101,10 @@ class DataLoadPreprocess(Dataset):
             self.depth_normalizer = 65535.0 / 10 # 1000
             self.depth_min = NYU_DEPTH_MIN
             self.depth_max = NYU_DEPTH_MAX
+            self.intrinsics = np.array([[5.1885790117450188e+02, 0, 3.2558244941119034e+02],
+                                        [0, 5.1946961112127485e+02, 2.5373616633400465e+02],
+                                        [0, 0, 1]])
+
         elif self.args.dataset == 'kitti':
             self.depth_normalizer = 256.0
             self.depth_min = KITTI_DEPTH_MIN
@@ -110,8 +115,16 @@ class DataLoadPreprocess(Dataset):
     def __getitem__(self, idx):
         raw_path = self.raw_paths[idx]
         gt_path = self.gt_paths[idx]
-        # This param shouldn't matter
-        focal = 518. #float(Path(raw_path).stem)
+        
+        if self.args.dataset == 'nyu':
+            intrinsics = self.intrinsics.copy()
+        else:
+            intrinsics_path = Path(raw_path).parent.parent.parent.parent / 'calib_cam_to_cam.txt'
+            with open(intrinsics_path, "r") as f:
+                intrinsics_str = yaml.safe_load(f)
+            intrinsics_str = intrinsics_str['K_02'] if 'image_02' in raw_path else intrinsics_str['K_03']
+            intrinsics = np.array([float(x) for x in intrinsics_str.split(' ')]).reshape((3, 3))
+        focal = 0.5 * (intrinsics[0, 0] + intrinsics[1, 1])
 
         image = Image.open(raw_path)
         depth_gt = Image.open(gt_path)
