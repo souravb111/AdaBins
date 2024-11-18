@@ -187,8 +187,8 @@ class DataLoadPreprocess(Dataset):
             depth_gt = np.asarray(depth_gt, dtype=np.float32)
             depth_gt = np.expand_dims(depth_gt, axis=2)
             depth_gt = depth_gt / self.depth_normalizer
-            depth_gt_mask = np.logical_and(depth_gt > self.depth_min, depth_gt < self.depth_max)
             image, depth_gt, intrinsics = self.train_preprocess(image, depth_gt, intrinsics)
+            depth_gt_mask = np.logical_and(depth_gt > self.depth_min, depth_gt < self.depth_max)
             sample = {'image': image, 'depth': depth_gt, 'focal': focal, 'depth_mask': depth_gt_mask, 'intrinsics': intrinsics}
         else:
             image = np.asarray(image, dtype=np.float32) / 255.0
@@ -237,9 +237,11 @@ class DataLoadPreprocess(Dataset):
             image = self.augment_image(image)
 
         do_resize = random.random()
-        if True:
-        # if do_resize > 0.5:
-            new_h, new_w = image.shape[0]*2//3, image.shape[1]*2//3
+        if do_resize > 0.5:
+            if do_resize > 0.75:
+                new_h, new_w = image.shape[0]*2//3, image.shape[1]*2//3
+            else:
+                new_h, new_w = image.shape[0]*3//4, image.shape[1]*3//4
             image = cv2.resize(image, dsize=(new_w, new_h), interpolation=cv2.INTER_LINEAR)
             depth = cv2.resize(depth_gt, dsize=(new_w, new_h), interpolation=cv2.INTER_NEAREST)
             intrinsics *= 0.5
