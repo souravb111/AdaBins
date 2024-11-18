@@ -209,8 +209,7 @@ def train(model, args, epochs=10, experiment_name="DeepLab", lr=0.0001, root="."
             scheduler.step()
 
             ########################################################################################################
-            if True:
-            # if should_write and step % args.validate_every == 0:
+            if should_write and step % args.validate_every == 0:
 
                 ################################# Validation loop ##################################################
                 model.eval()

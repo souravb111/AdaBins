@@ -236,16 +236,24 @@ class DataLoadPreprocess(Dataset):
         if do_augment > 0.5:
             image = self.augment_image(image)
 
-        do_resize = random.random()
-        if do_resize > 0.5:
-            if do_resize > 0.75:
-                new_h, new_w = image.shape[0]*2//3, image.shape[1]*2//3
-            else:
-                new_h, new_w = image.shape[0]*3//4, image.shape[1]*3//4
+        rank = torch.distributed.get_rank() if torch.distributed.is_initialized() else 0
+        if rank == 1:
+            new_h, new_w = image.shape[0]*3//4, image.shape[1]*3//4
             image = cv2.resize(image, dsize=(new_w, new_h), interpolation=cv2.INTER_LINEAR)
             depth = cv2.resize(depth_gt, dsize=(new_w, new_h), interpolation=cv2.INTER_NEAREST)
             intrinsics *= 0.5
             intrinsics[2, 2] = 1
+            
+        # do_resize = random.random()
+        # if do_resize > 0.5:
+        #     if do_resize > 0.75:
+        #         new_h, new_w = image.shape[0]*2//3, image.shape[1]*2//3
+        #     else:
+        #         new_h, new_w = image.shape[0]*3//4, image.shape[1]*3//4
+        #     image = cv2.resize(image, dsize=(new_w, new_h), interpolation=cv2.INTER_LINEAR)
+        #     depth = cv2.resize(depth_gt, dsize=(new_w, new_h), interpolation=cv2.INTER_NEAREST)
+        #     intrinsics *= 0.5
+        #     intrinsics[2, 2] = 1
             
         return image, depth_gt, intrinsics
 
