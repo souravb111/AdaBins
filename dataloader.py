@@ -4,13 +4,17 @@ import os
 import random
 from pathlib import Path
 import yaml
+from typing import Tuple
+import math
 
+import cv2
 import numpy as np
 import torch
 import torch.utils.data.distributed
 from PIL import Image
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
+import torch.nn.functional as F
 
 KITTI_DEPTH_MIN = 1e-3
 KITTI_DEPTH_MAX = 256
@@ -30,6 +34,26 @@ def preprocessing_transforms(mode):
         ToTensor(mode=mode)
     ])
 
+def pad_images(images: torch.Tensor, multiple_of: int = 32) -> Tuple[torch.Tensor, Tuple[int, int]]:
+    """Pads an image tensor with zeros such that its dimensions are a multiple of the given int.
+    Padding is always applied at the bottom and on the right.
+
+    Args:
+        images: tensor of shape [C, H, W] or [B, C, H, W]
+        multiple_of: Image dimensions after padding will be integer multiples of this argument. Defaults to 32.
+    """
+    height, width = images.shape[-2:]
+    images_dim = images.dim()
+    padding_bottom: int = int(math.ceil(float(height) / multiple_of) * multiple_of) - int(height)
+    padding_right: int = int(math.ceil(float(width) / multiple_of) * multiple_of) - int(width)
+    assert padding_bottom >= 0 and padding_right >= 0, f"Invalid padding: {padding_bottom}, {padding_right}"
+    if images_dim == 4:
+        images = F.pad(images, (0, padding_right, 0, padding_bottom), mode="constant", value=0.0)
+    else:
+        images = F.pad(images.unsqueeze(0), (0, padding_right, 0, padding_bottom), mode="constant", value=0.0).squeeze(
+            0
+        )
+    return images, (padding_bottom, padding_right)
 
 class DepthDataLoader(object):
     def __init__(self, args, mode):
@@ -164,15 +188,15 @@ class DataLoadPreprocess(Dataset):
             depth_gt = np.expand_dims(depth_gt, axis=2)
             depth_gt = depth_gt / self.depth_normalizer
             depth_gt_mask = np.logical_and(depth_gt > self.depth_min, depth_gt < self.depth_max)
-            image, depth_gt = self.train_preprocess(image, depth_gt)
-            sample = {'image': image, 'depth': depth_gt, 'focal': focal, 'depth_mask': depth_gt_mask}
+            image, depth_gt, intrinsics = self.train_preprocess(image, depth_gt, intrinsics)
+            sample = {'image': image, 'depth': depth_gt, 'focal': focal, 'depth_mask': depth_gt_mask, 'intrinsics': intrinsics}
         else:
             image = np.asarray(image, dtype=np.float32) / 255.0
             depth_gt = np.asarray(depth_gt, dtype=np.float32)
             depth_gt = np.expand_dims(depth_gt, axis=2)
             depth_gt = depth_gt / self.depth_normalizer
             depth_gt_mask = np.logical_and(depth_gt > self.depth_min, depth_gt < self.depth_max)
-            sample = {'image': image, 'depth': depth_gt, 'focal': focal, 'image_path': raw_path, 'depth_path': gt_path, 'depth_mask': depth_gt_mask}
+            sample = {'image': image, 'depth': depth_gt, 'focal': focal, 'image_path': raw_path, 'depth_path': gt_path, 'depth_mask': depth_gt_mask, 'intrinsics': intrinsics}
 
         if self.transform:
             sample = self.transform(sample)
@@ -194,7 +218,7 @@ class DataLoadPreprocess(Dataset):
         depth = depth[y:y + height, x:x + width, :]
         return img, depth
 
-    def train_preprocess(self, image, depth_gt):
+    def train_preprocess(self, image, depth_gt, intrinsics):
         """
         Applies flipping and gamma/brightness/color augmentation. Flipping currently disabled for consistent intrinsics
 
@@ -212,7 +236,16 @@ class DataLoadPreprocess(Dataset):
         if do_augment > 0.5:
             image = self.augment_image(image)
 
-        return image, depth_gt
+        do_resize = random.random()
+        if True:
+        # if do_resize > 0.5:
+            new_h, new_w = image.shape[0]*2//3, image.shape[1]*2//3
+            image = cv2.resize(image, dsize=(new_w, new_h), interpolation=cv2.INTER_LINEAR)
+            depth = cv2.resize(depth_gt, dsize=(new_w, new_h), interpolation=cv2.INTER_NEAREST)
+            intrinsics *= 0.5
+            intrinsics[2, 2] = 1
+            
+        return image, depth_gt, intrinsics
 
     def augment_image(self, image):
         # gamma augmentation
@@ -248,18 +281,21 @@ class ToTensor(object):
         image, focal = sample['image'], sample['focal']
         image = self.to_tensor(image)
         image = self.normalize(image)
+        image = pad_images(image, multiple_of=32)[0]
 
         if self.mode == 'test':
             return {'image': image, 'focal': focal}
 
         depth, depth_mask = sample['depth'], sample['depth_mask']
+        intrinsics = torch.tensor(sample['intrinsics'])
+        depth = self.to_tensor(depth)
+        depth_mask = self.to_tensor(depth_mask)
+        depth = pad_images(depth, multiple_of=32)[0]
+        depth_mask = pad_images(depth_mask, multiple_of=32)[0]
         if self.mode == 'train':
-            # TODO: why only in training?
-            depth = self.to_tensor(depth)
-            depth_mask = self.to_tensor(depth_mask)
-            return {'image': image, 'depth': depth, 'focal': focal, 'depth_mask': depth_mask}
+            return {'image': image, 'depth': depth, 'focal': focal, 'depth_mask': depth_mask, 'intrinsics': intrinsics}
         else:
-            return {'image': image, 'depth': depth, 'focal': focal, 'image_path': sample['image_path'], 'depth_path': sample['depth_path'], 'depth_mask': depth_mask}
+            return {'image': image, 'depth': depth, 'focal': focal, 'image_path': sample['image_path'], 'depth_path': sample['depth_path'], 'depth_mask': depth_mask, 'intrinsics': intrinsics}
 
     def to_tensor(self, pic):
         if not (_is_pil_image(pic) or _is_numpy_image(pic)):

@@ -27,7 +27,9 @@ class DecoderBN(nn.Module):
         super(DecoderBN, self).__init__()
         features = int(num_features)
 
-        self.conv2 = nn.Conv2d(bottleneck_features, features, kernel_size=1, stride=1, padding=1)
+        self.conv2 = nn.Conv2d(bottleneck_features + 64, features, kernel_size=1, stride=1, padding=1)
+        self.intrinsics_mlp = nn.Linear(4, 64, bias=True)
+        self.intrinsics_norm = nn.LayerNorm(64)
 
         self.up1 = UpSampleBN(skip_input=features // 1 + 112 + 64, output_features=features // 2)
         self.up2 = UpSampleBN(skip_input=features // 2 + 40 + 24, output_features=features // 4)
@@ -38,10 +40,15 @@ class DecoderBN(nn.Module):
         self.conv3 = nn.Conv2d(features // 16, num_classes, kernel_size=3, stride=1, padding=1)
         # self.act_out = nn.Softmax(dim=1) if output_activation == 'softmax' else nn.Identity()
 
-    def forward(self, features):
+    def forward(self, features, intrinsics):
         x_block0, x_block1, x_block2, x_block3, x_block4 = features[4], features[5], features[6], features[8], features[
             11]
 
+        _, _, bottleneck_h, bottleneck_w = x_block4.size()
+        x_intri = intrinsics[:, [0, 0, 1, 1], [0, 2, 1, 2]].float() / 1e3
+        x_intri = self.intrinsics_norm(self.intrinsics_mlp(x_intri))[..., None, None].repeat(1, 1, bottleneck_h, bottleneck_w)
+        x_block4 = torch.cat([x_block4, x_intri], dim=1)
+        
         x_d0 = self.conv2(x_block4)
 
         x_d1 = self.up1(x_d0, x_block3)
@@ -89,8 +96,8 @@ class UnetAdaptiveBins(nn.Module):
         self.conv_out = nn.Sequential(nn.Conv2d(128, n_bins, kernel_size=1, stride=1, padding=0),
                                       nn.Softmax(dim=1))
 
-    def forward(self, x, **kwargs):
-        unet_out = self.decoder(self.encoder(x), **kwargs)
+    def forward(self, x, intrinsics, **kwargs):
+        unet_out = self.decoder(self.encoder(x), intrinsics, **kwargs)
         bin_widths_normed, range_attention_maps = self.adaptive_bins_layer(unet_out)
         out = self.conv_out(range_attention_maps)
 

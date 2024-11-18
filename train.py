@@ -182,8 +182,9 @@ def train(model, args, epochs=10, experiment_name="DeepLab", lr=0.0001, root="."
             img = batch['image'].to(device)
             depth = batch['depth'].to(device)
             depth_mask = batch['depth_mask'].to(device)
+            intrinsics = batch['intrinsics'].to(device)
 
-            bin_edges, pred = model(img)
+            bin_edges, pred = model(img, intrinsics)
             l_dense = criterion_ueff(pred, depth, mask=depth_mask.to(torch.bool), interpolate=True)
 
             if args.w_chamfer > 0:
@@ -208,7 +209,8 @@ def train(model, args, epochs=10, experiment_name="DeepLab", lr=0.0001, root="."
             scheduler.step()
 
             ########################################################################################################
-            if should_write and step % args.validate_every == 0:
+            if True:
+            # if should_write and step % args.validate_every == 0:
 
                 ################################# Validation loop ##################################################
                 model.eval()
@@ -245,8 +247,9 @@ def validate(args, model, test_loader, criterion_ueff, epoch, epochs, device='cp
             img = batch['image'].to(device)
             depth = batch['depth'].to(device) 
             depth = depth.squeeze().unsqueeze(0).unsqueeze(0)
-            depth_mask = batch['depth_mask'].to(device).squeeze(-1).unsqueeze(0)
-            bins, pred = model(img)
+            depth_mask = batch['depth_mask'].to(device).squeeze(-1)
+            intrinsics = batch['intrinsics'].to(device)
+            bins, pred = model(img, intrinsics)
 
             l_dense = criterion_ueff(pred, depth, mask=depth_mask.to(torch.bool), interpolate=True)
             val_si.append(l_dense.item())
