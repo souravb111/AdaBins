@@ -15,7 +15,10 @@ val_raw_paths = []
 for sub_dir in gt_dir.iterdir():
     if 'sync' in sub_dir.name:
         for gt_path in (sub_dir / 'proj_depth/groundtruth/image_02').iterdir():
-            raw_path = str(gt_path).replace(f'avg-kitti/{split}', 'kitti-depth/2011_09_26').replace('proj_depth/groundtruth/image_02', 'image_02/data')
+            date_sync_str = str(gt_path.parent.parent.parent.parent.stem)
+            date_str = date_sync_str[:10]
+            
+            raw_path = str(gt_path).replace(f'avg-kitti/{split}/{date_sync_str}', f'kitti-depth/{date_str}/{date_sync_str}').replace('proj_depth/groundtruth/image_02', 'image_02/data')
             
             if Path(raw_path).exists() and gt_path.exists():
                 print(f"{raw_path} -> {gt_path}")
@@ -51,7 +54,10 @@ train_raw_paths = []
 for sub_dir in gt_dir.iterdir():
     if 'sync' in sub_dir.name:
         for gt_path in (sub_dir / 'proj_depth/groundtruth/image_02').iterdir():
-            raw_path = str(gt_path).replace(f'avg-kitti/{split}', 'kitti-depth/2011_09_26').replace('proj_depth/groundtruth/image_02', 'image_02/data')
+            date_sync_str = str(gt_path.parent.parent.parent.parent.stem)
+            date_str = date_sync_str[:10]
+            
+            raw_path = str(gt_path).replace(f'avg-kitti/{split}/{date_sync_str}', f'kitti-depth/{date_str}/{date_sync_str}').replace('proj_depth/groundtruth/image_02', 'image_02/data')
             
             if Path(raw_path).exists() and gt_path.exists() and raw_path not in val_raw_paths:
                 print(f"{raw_path} -> {gt_path}")
