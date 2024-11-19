@@ -14,7 +14,33 @@ from models import UnetAdaptiveBins
 from utils import RunningAverageDict
 
 
-def compute_errors(gt, pred):
+KITTI_DISTANCE_BUCKETS = [
+    [0, 25],
+    [25, 50],
+    [50, 100],
+    [100, 256]
+]
+
+NYU_DISTANCE_BUCKETS = [
+    [0, 2.5],
+    [2.5, 5],
+    [5, 7.5],
+    [7.5, 10]
+]
+
+def compute_errors(gt, pred, eval_range=None):
+    if eval_range is not None:
+        mask = np.logical_and(gt >= eval_range[0], gt < eval_range[1])
+        if mask.sum() == 0:
+            return {}
+        gt_eval = gt[mask]
+        pred_eval = pred[mask]
+        postfix = f"_{eval_range[0]:.1f}m_{eval_range[1]:.1f}m"
+    else:
+        gt_eval = gt.copy()
+        pred_eval = pred.copy()
+        postfix = ""
+    
     thresh = np.maximum((gt / pred), (pred / gt))
     a1 = (thresh < 1.25).mean()
     a2 = (thresh < 1.25 ** 2).mean()
@@ -33,8 +59,17 @@ def compute_errors(gt, pred):
     silog = np.sqrt(np.mean(err ** 2) - np.mean(err) ** 2) * 100
 
     log_10 = (np.abs(np.log10(gt) - np.log10(pred))).mean()
-    return dict(a1=a1, a2=a2, a3=a3, abs_rel=abs_rel, rmse=rmse, log_10=log_10, rmse_log=rmse_log,
-                silog=silog, sq_rel=sq_rel)
+    return {
+        f"a1{postfix}": a1,
+        f"a2{postfix}": a2,
+        f"a3{postfix}": a3,
+        f"abs_rel{postfix}": abs_rel,
+        f"rmse{postfix}": rmse,
+        f"log_10{postfix}": log_10,
+        f"rmse_log{postfix}": rmse_log,
+        f"silog{postfix}": silog,
+        f"sq_rel{postfix}": sq_rel,
+    }
 
 
 # def denormalize(x, device='cpu'):
@@ -42,8 +77,8 @@ def compute_errors(gt, pred):
 #     std = torch.Tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1).to(device)
 #     return x * std + mean
 #
-def predict_tta(model, image, args):
-    pred = model(image)[-1]
+def predict_tta(model, image, intrinsics, args):
+    pred = model(image, intrinsics)[-1]
     #     pred = utils.depth_norm(pred)
     #     pred = nn.functional.interpolate(pred, depth.shape[-2:], mode='bilinear', align_corners=True)
     #     pred = np.clip(pred.cpu().numpy(), 10, 1000)/100.
@@ -70,6 +105,7 @@ def eval(model, test_loader, args, gpus=None, ):
     if args.save_dir is not None and not os.path.isdir(args.save_dir):
         os.makedirs(args.save_dir)
 
+    distance_buckets = KITTI_DISTANCE_BUCKETS if args.dataset == 'kitti' else NYU_DISTANCE_BUCKETS
     metrics = RunningAverageDict()
     # crop_size = (471 - 45, 601 - 41)
     # bins = utils.get_bins(100)
@@ -82,7 +118,9 @@ def eval(model, test_loader, args, gpus=None, ):
 
             image = batch['image'].to(device)
             gt = batch['depth'].to(device) 
-            final = predict_tta(model, image, args)
+            intrinsics = batch['intrinsics'].to(device)
+            gt_mask = batch['depth_mask'].squeeze()
+            final = predict_tta(model, image, intrinsics, args)
             final = final.squeeze().cpu().numpy()
 
             # final[final < args.min_depth] = args.min_depth
@@ -113,25 +151,28 @@ def eval(model, test_loader, args, gpus=None, ):
             gt = gt.squeeze().cpu().numpy()
             valid_mask = np.logical_and(gt > args.min_depth_eval, gt < args.max_depth_eval)
             eval_mask = np.ones(valid_mask.shape)
-            if args.garg_crop or args.eigen_crop:
-                gt_height, gt_width = gt.shape
-                eval_mask = np.zeros(valid_mask.shape)
+            # if args.garg_crop or args.eigen_crop:
+            #     gt_height, gt_width = gt.shape
+            #     eval_mask = np.zeros(valid_mask.shape)
 
-                if args.garg_crop:
-                    eval_mask[int(0.40810811 * gt_height):int(0.99189189 * gt_height),
-                    int(0.03594771 * gt_width):int(0.96405229 * gt_width)] = 1
+            #     if args.garg_crop:
+            #         eval_mask[int(0.40810811 * gt_height):int(0.99189189 * gt_height),
+            #         int(0.03594771 * gt_width):int(0.96405229 * gt_width)] = 1
 
-                elif args.eigen_crop:
-                    if args.dataset == 'kitti':
-                        eval_mask[int(0.3324324 * gt_height):int(0.91351351 * gt_height),
-                        int(0.0359477 * gt_width):int(0.96405229 * gt_width)] = 1
-                    else:
-                        eval_mask[45:471, 41:601] = 1
+            #     elif args.eigen_crop:
+            #         if args.dataset == 'kitti':
+            #             eval_mask[int(0.3324324 * gt_height):int(0.91351351 * gt_height),
+            #             int(0.0359477 * gt_width):int(0.96405229 * gt_width)] = 1
+            #         else:
+            #             eval_mask[45:471, 41:601] = 1
             valid_mask = np.logical_and(valid_mask, eval_mask)
+            valid_mask = np.logical_and(valid_mask, gt_mask.numpy())
             #             gt = gt[valid_mask]
             #             final = final[valid_mask]
-
+            
             metrics.update(compute_errors(gt[valid_mask], final[valid_mask]))
+            for bucket_range in distance_buckets:
+                metrics.update(compute_errors(gt[valid_mask], final[valid_mask], bucket_range))
 
     print(f"Total invalid: {total_invalid}")
     metrics = {k: round(v, 3) for k, v in metrics.get_value().items()}
@@ -170,9 +211,9 @@ if __name__ == '__main__':
     parser.add_argument('--checkpoint_path', '--checkpoint-path', type=str, required=True,
                         help="checkpoint file to use for prediction")
     
-    parser.add_argument('--eigen_crop', help='if set, crops according to Eigen NIPS14', action='store_true')
-    parser.add_argument('--garg_crop', help='if set, crops according to Garg  ECCV16', action='store_true')
-    parser.add_argument('--do_kb_crop', help='Use kitti benchmark cropping', action='store_true')
+    # parser.add_argument('--eigen_crop', help='if set, crops according to Eigen NIPS14', action='store_true')
+    # parser.add_argument('--garg_crop', help='if set, crops according to Garg  ECCV16', action='store_true')
+    # parser.add_argument('--do_kb_crop', help='Use kitti benchmark cropping', action='store_true')
 
     if sys.argv.__len__() == 2:
         arg_filename_with_prefix = '@' + sys.argv[1]
@@ -187,8 +228,10 @@ if __name__ == '__main__':
     test = DepthDataLoader(args, 'eval').data
     if args.dataset == 'kitti':
         args.min_depth, args.max_depth = KITTI_DEPTH_MIN, KITTI_DEPTH_MAX
+        args.min_depth_eval, args.max_depth_eval = KITTI_DEPTH_MIN, KITTI_DEPTH_MAX
     elif args.dataset == 'nyu':
         args.min_depth, args.max_depth = NYU_DEPTH_MIN, NYU_DEPTH_MAX
+        args.min_depth_eval, args.max_depth_eval = NYU_DEPTH_MIN, NYU_DEPTH_MAX
     else:
         raise NotImplementedError("Only KITTI and NYU are supported")
     model = UnetAdaptiveBins.build(n_bins=args.n_bins, min_val=args.min_depth, max_val=args.max_depth, norm='linear').to(device)
