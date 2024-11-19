@@ -55,6 +55,78 @@ def pad_images(images: torch.Tensor, multiple_of: int = 32) -> Tuple[torch.Tenso
         )
     return images, (padding_bottom, padding_right)
 
+
+def augment_long_range(
+    image,
+    depth_map,
+    intrinsics,
+    alpha: float,
+):
+    """Apply long range augmentation to all cameras.
+    - Performs a local optimization of alpha in range [alpha-0.1, alpha+0.1] to minimize padding for augmented image
+    - Augment intrinsics and extrinsics so that depth of projected lidar points is scaled by alpha in camera frame
+
+    Args:
+        image: dict of images from each camera for the last lidar bundle
+        alpha: scaling ratio for the image. Z-coordinate is scaled by (1/alpha)
+
+    Returns:
+        image: augmented dict of images from each camera for the last lidar bundle
+        camera_intrinsics: augmented intrinsics
+        camera_extrinsics: augmented extrinsics
+        alpha: locally optimized alpha
+    """
+    # img_colorized = (image * 255).astype(np.uint8)
+    # depth_map_colorized = cv2.applyColorMap(depth_map.astype(np.uint8), cv2.COLORMAP_TURBO) # img.shape = (x, y)
+    # depth_overlay = cv2.addWeighted(img_colorized, 0.5, depth_map_colorized, 0.5, 0.0)
+    # cv2.imwrite("depth_orig.png", depth_overlay)
+
+    # Get pixelwise image remappings
+    def get_maps(_alpha, _intrinsics, _img_size):
+        map_x1, map_y1 = np.meshgrid(np.arange(_img_size[1]), np.arange(_img_size[0]))
+        map_x1 = map_x1.astype(np.float32)
+        map_y1 = map_y1.astype(np.float32)
+        map_x1 *= _alpha
+        map_y1 *= _alpha
+        map_x1 += (1 - _alpha) * _intrinsics[0, 2].item()
+        map_y1 += (1 - _alpha) * _intrinsics[1, 2].item()
+
+        # Different logic needed to handle upsampling vs downsampling
+        if _alpha > 1:
+            map_x2, map_y2 = np.meshgrid(np.arange(_img_size[1] // _alpha), np.arange(_img_size[0] // _alpha))
+            map_x2 = map_x2.astype(np.float32)
+            map_y2 = map_y2.astype(np.float32)
+            map_x2 -= (1 - _alpha) * _intrinsics[0, 2].item() / _alpha
+            map_y2 -= (1 - _alpha) * _intrinsics[1, 2].item() / _alpha
+
+            intrinsics_correction = torch.eye(3, dtype=_intrinsics.dtype)
+            intrinsics_correction[0, 2] = (1 - _alpha) * _intrinsics[0, 2].item() / _alpha
+            intrinsics_correction[1, 2] = (1 - _alpha) * _intrinsics[1, 2].item() / _alpha
+            new_intrinsics = intrinsics_correction @ _intrinsics
+        else:
+            new_intrinsics = _intrinsics
+            map_x2, map_y2 = None, None
+
+        return map_x1, map_y1, map_x2, map_y2, new_intrinsics
+
+    img_size = image.shape[:2]
+    map_x1, map_y1, map_x2, map_y2, new_intrinsics = get_maps(alpha, torch.tensor(intrinsics), img_size)
+
+    intrinsics = new_intrinsics.numpy()
+    depth_map_mapped = depth_map * alpha
+    img_mapped = cv2.remap(image, map_x1, map_y1, cv2.INTER_LINEAR)
+    depth_map_mapped = cv2.remap(depth_map_mapped, map_x1, map_y1, cv2.INTER_NEAREST)
+    if not isinstance(map_x2, type(None)):
+        img_mapped = cv2.remap(img_mapped, map_x2, map_y2, cv2.INTER_LINEAR)
+        depth_map_mapped = cv2.remap(depth_map_mapped, map_x2, map_y2, cv2.INTER_NEAREST)
+
+    # img_colorized = (img_mapped * 255).astype(np.uint8)
+    # depth_map_colorized = cv2.applyColorMap(depth_map_mapped.astype(np.uint8), cv2.COLORMAP_TURBO) # img.shape = (x, y)
+    # depth_overlay = cv2.addWeighted(img_colorized, 0.5, depth_map_colorized, 0.5, 0.0)
+    # cv2.imwrite("depth.png", depth_overlay)
+    return img_mapped, depth_map_mapped, intrinsics
+
+
 class DepthDataLoader(object):
     def __init__(self, args, mode):
         if mode == 'train':
@@ -237,12 +309,14 @@ class DataLoadPreprocess(Dataset):
             image = self.augment_image(image)
 
         rank = torch.distributed.get_rank() if torch.distributed.is_initialized() else 0
+        # if rank == 1:
+        #     new_h, new_w = image.shape[0]*3//4, image.shape[1]*3//4
+        #     image = cv2.resize(image, dsize=(new_w, new_h), interpolation=cv2.INTER_LINEAR)
+        #     depth = cv2.resize(depth_gt, dsize=(new_w, new_h), interpolation=cv2.INTER_NEAREST)
+        #     intrinsics *= 0.5
+        #     intrinsics[2, 2] = 1
         if rank == 1:
-            new_h, new_w = image.shape[0]*3//4, image.shape[1]*3//4
-            image = cv2.resize(image, dsize=(new_w, new_h), interpolation=cv2.INTER_LINEAR)
-            depth = cv2.resize(depth_gt, dsize=(new_w, new_h), interpolation=cv2.INTER_NEAREST)
-            intrinsics *= 0.5
-            intrinsics[2, 2] = 1
+            image, depth_gt, intrinsics = augment_long_range(image, depth_gt, intrinsics, alpha=1.333)
             
         # do_resize = random.random()
         # if do_resize > 0.5:
