@@ -41,24 +41,24 @@ def compute_errors(gt, pred, eval_range=None):
         pred_eval = pred.copy()
         postfix = ""
     
-    thresh = np.maximum((gt / pred), (pred / gt))
+    thresh = np.maximum((gt_eval / pred_eval), (pred_eval / gt_eval))
     a1 = (thresh < 1.25).mean()
     a2 = (thresh < 1.25 ** 2).mean()
     a3 = (thresh < 1.25 ** 3).mean()
 
-    abs_rel = np.mean(np.abs(gt - pred) / gt)
-    sq_rel = np.mean(((gt - pred) ** 2) / gt)
+    abs_rel = np.mean(np.abs(gt_eval - pred_eval) / gt_eval)
+    sq_rel = np.mean(((gt_eval - pred_eval) ** 2) / gt_eval)
 
-    rmse = (gt - pred) ** 2
+    rmse = (gt_eval - pred_eval) ** 2
     rmse = np.sqrt(rmse.mean())
 
-    rmse_log = (np.log(gt) - np.log(pred)) ** 2
+    rmse_log = (np.log(gt_eval) - np.log(pred_eval)) ** 2
     rmse_log = np.sqrt(rmse_log.mean())
 
-    err = np.log(pred) - np.log(gt)
+    err = np.log(pred_eval) - np.log(gt_eval)
     silog = np.sqrt(np.mean(err ** 2) - np.mean(err) ** 2) * 100
 
-    log_10 = (np.abs(np.log10(gt) - np.log10(pred))).mean()
+    log_10 = (np.abs(np.log10(gt_eval) - np.log10(pred_eval))).mean()
     return {
         f"a1{postfix}": a1,
         f"a2{postfix}": a2,
