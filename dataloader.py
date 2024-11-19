@@ -315,8 +315,9 @@ class DataLoadPreprocess(Dataset):
         #     depth = cv2.resize(depth_gt, dsize=(new_w, new_h), interpolation=cv2.INTER_NEAREST)
         #     intrinsics *= 0.5
         #     intrinsics[2, 2] = 1
-        if rank == 1:
-            image, depth_gt, intrinsics = augment_long_range(image, depth_gt, intrinsics, alpha=1.333)
+        do_resize = random.random()
+        if rank == 1 and do_resize() > 0.5:
+            image, depth_gt, intrinsics = augment_long_range(image, depth_gt, intrinsics, alpha=1.5)
             
         # do_resize = random.random()
         # if do_resize > 0.5:
