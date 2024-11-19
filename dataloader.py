@@ -225,30 +225,21 @@ class DataLoadPreprocess(Dataset):
         image = Image.open(raw_path)
         depth_gt = Image.open(gt_path)
 
-        # Store the image height and width for later use
-        if self.image_height is None:
-            self.image_height = image.height
-            self.image_width = image.width
-            # self.image_height, self.image_width = image.shape[:2]
-        
-        # if self.args.do_kb_crop is True:
-        #     self.image_height = 352
-        #     self.image_width = 1216
-        #     height, width = image.shape[:2]
-        #     top_margin = int(height - 352)
-        #     left_margin = int((width - 1216) / 2)
-        #     image = image[top_margin:top_margin + 352, left_margin:left_margin + 1216, :]
-        #     depth_gt = depth_gt[top_margin:top_margin + 352, left_margin:left_margin + 1216, :]
+        if self.args.dataset == 'kitti':
+            height, width = image.height, image.width
+            top_margin = int(height - 352)
+            left_margin = int((width - 1216) / 2)
+            image = image.crop((left_margin, top_margin, left_margin + 1216, top_margin + 352))
+            depth_gt = depth_gt.crop((left_margin, top_margin, left_margin + 1216, top_margin + 352))
+            self.image_height = 352
+            self.image_width = 1216
+        else:
+            depth_gt = depth_gt.crop((43, 45, 608, 472))
+            image = image.crop((43, 45, 608, 472))
+            self.image_height = 416
+            self.image_width = 544
                 
         if self.mode == 'train':
-            # TODO: re-enable with intrinsics compensation
-            # # To avoid blank boundaries due to pixel registration
-            # if self.args.dataset == 'nyu':
-            #     depth_gt = depth_gt.crop((43, 45, 608, 472))
-            #     image = image.crop((43, 45, 608, 472))
-            #     self.image_height = 416
-            #     self.image_width = 544
-
             # if self.args.do_random_rotate is True:
             #     random_angle = (random.random() - 0.5) * 2 * self.args.degree
             #     image = self.rotate_image(image, random_angle)
