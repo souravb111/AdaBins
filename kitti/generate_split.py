@@ -2,8 +2,11 @@ import os
 from pathlib import Path
 import csv
 from copy import deepcopy
+import random
 
 mini = False
+n_val = 2500
+n_train = 10000
 raw_dir = Path("/mnt/remote/shared_data/datasets/kitti-depth/2011_09_26")
 
 ## Val
@@ -37,9 +40,10 @@ if mini:
 else:
     out_path = f'kitti_{split}.csv'
     
+random.shuffle(raw_gt_pairs)
 with open(out_path,'w') as out:
     csv_out=csv.writer(out)
-    for row in raw_gt_pairs:
+    for row in raw_gt_pairs[:n_val]:
         csv_out.writerow(row)
         
 ## Train
@@ -70,9 +74,10 @@ if mini:
     out_path = f'kitti_mini_{split}.csv'
 else:
     out_path = f'kitti_{split}.csv'
-    
+
+random.shuffle(raw_gt_pairs)
 with open(out_path,'w') as out:
     csv_out=csv.writer(out)
-    for row in raw_gt_pairs:
+    for row in raw_gt_pairs[:n_train]:
         csv_out.writerow(row)
         
