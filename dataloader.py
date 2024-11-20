@@ -17,7 +17,7 @@ from torchvision import transforms
 import torch.nn.functional as F
 
 KITTI_DEPTH_MIN = 1e-3
-KITTI_DEPTH_MAX = 100
+KITTI_DEPTH_MAX = 256
 NYU_DEPTH_MIN = 1e-3
 NYU_DEPTH_MAX = 10
 
