@@ -17,7 +17,7 @@ from torchvision import transforms
 import torch.nn.functional as F
 
 KITTI_DEPTH_MIN = 1e-3
-KITTI_DEPTH_MAX = 256
+KITTI_DEPTH_MAX = 150
 NYU_DEPTH_MIN = 1e-3
 NYU_DEPTH_MAX = 10
 
@@ -313,8 +313,7 @@ class DataLoadPreprocess(Dataset):
         #     intrinsics *= 0.5
         #     intrinsics[2, 2] = 1
         do_resize = random.random()
-        if True:
-        # if rank == 1 and do_resize() > 0.5:
+        if rank == 1 and do_resize() > 0.5:
             image, depth_gt, intrinsics = augment_long_range(image, depth_gt, intrinsics, alpha=1.5)
             
         # do_resize = random.random()
