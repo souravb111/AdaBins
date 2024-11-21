@@ -76,7 +76,7 @@ def augment_long_range(
         camera_extrinsics: augmented extrinsics
         alpha: locally optimized alpha
     """
-    # img_colorized = (image * 255).astype(np.uint8)
+    # img_colorized = (image[..., :3] * 255).astype(np.uint8)
     # depth_map_colorized = cv2.applyColorMap(depth_map.astype(np.uint8), cv2.COLORMAP_TURBO) # img.shape = (x, y)
     # depth_overlay = cv2.addWeighted(img_colorized, 0.5, depth_map_colorized, 0.5, 0.0)
     # cv2.imwrite("depth_orig.png", depth_overlay)
@@ -120,7 +120,7 @@ def augment_long_range(
         img_mapped = cv2.remap(img_mapped, map_x2, map_y2, cv2.INTER_LINEAR)
         depth_map_mapped = cv2.remap(depth_map_mapped, map_x2, map_y2, cv2.INTER_NEAREST)
 
-    # img_colorized = (img_mapped * 255).astype(np.uint8)
+    # img_colorized = (img_mapped[..., :3] * 255).astype(np.uint8)
     # depth_map_colorized = cv2.applyColorMap(depth_map_mapped.astype(np.uint8), cv2.COLORMAP_TURBO) # img.shape = (x, y)
     # depth_overlay = cv2.addWeighted(img_colorized, 0.5, depth_map_colorized, 0.5, 0.0)
     # cv2.imwrite("depth.png", depth_overlay)
@@ -214,30 +214,35 @@ class DataLoadPreprocess(Dataset):
         
         if self.args.dataset == 'nyu':
             intrinsics = self.intrinsics.copy()
+            # TODO: sam_feats_path = ...
         else:
             intrinsics_path = Path(raw_path).parent.parent.parent.parent / 'calib_cam_to_cam.txt'
             with open(intrinsics_path, "r") as f:
                 intrinsics_str = yaml.safe_load(f)
             intrinsics_str = intrinsics_str['K_02'] if 'image_02' in raw_path else intrinsics_str['K_03']
             intrinsics = np.array([float(x) for x in intrinsics_str.split(' ')]).reshape((3, 3))
+            sam_feats_path = raw_path.replace("kitti-depth", "kitti-depth-sam-feats")
         focal = 0.5 * (intrinsics[0, 0] + intrinsics[1, 1])
 
         image = Image.open(raw_path)
         depth_gt = Image.open(gt_path)
+        sam_feats = torch.load(sam_feats_path)
 
         if self.args.dataset == 'kitti':
+            self.image_height = 250
+            self.image_width = 1200
             height, width = image.height, image.width
-            top_margin = int(height - 352)
-            left_margin = int((width - 1216) / 2)
-            image = image.crop((left_margin, top_margin, left_margin + 1216, top_margin + 352))
-            depth_gt = depth_gt.crop((left_margin, top_margin, left_margin + 1216, top_margin + 352))
-            self.image_height = 352
-            self.image_width = 1216
+            top_margin = int(height - self.image_height)
+            left_margin = int((width - self.image_width) / 2)
+            image = image.crop((left_margin, top_margin, left_margin + self.image_width, top_margin + self.image_height))
+            depth_gt = depth_gt.crop((left_margin, top_margin, left_margin + self.image_width, top_margin + self.image_height))
+            sam_feats = sam_feats[..., top_margin:top_margin+self.image_height, left_margin:left_margin+self.image_width]
         else:
             depth_gt = depth_gt.crop((43, 45, 608, 472))
             image = image.crop((43, 45, 608, 472))
             self.image_height = 416
             self.image_width = 544
+        sam_feats = sam_feats[0, ...].permute(1, 2, 0).numpy()
                 
         if self.mode == 'train':
             # if self.args.do_random_rotate is True:
@@ -250,6 +255,7 @@ class DataLoadPreprocess(Dataset):
             depth_gt = np.asarray(depth_gt, dtype=np.float32)
             depth_gt = np.expand_dims(depth_gt, axis=2)
             depth_gt = depth_gt / self.depth_normalizer
+            image = np.concatenate([image, sam_feats], axis=2)
             image, depth_gt, intrinsics = self.train_preprocess(image, depth_gt, intrinsics)
             depth_gt_mask = np.logical_and(depth_gt > self.depth_min, depth_gt < self.depth_max)
             sample = {'image': image, 'depth': depth_gt, 'focal': focal, 'depth_mask': depth_gt_mask, 'intrinsics': intrinsics}
@@ -297,7 +303,7 @@ class DataLoadPreprocess(Dataset):
         # Random gamma, brightness, color augmentation
         do_augment = random.random()
         if do_augment > 0.5:
-            image = self.augment_image(image)
+            image[..., :3] = self.augment_image(image[..., :3])
 
         rank = torch.distributed.get_rank() if torch.distributed.is_initialized() else 0
         # if rank == 1:
@@ -307,7 +313,8 @@ class DataLoadPreprocess(Dataset):
         #     intrinsics *= 0.5
         #     intrinsics[2, 2] = 1
         do_resize = random.random()
-        if rank == 1 and do_resize() > 0.5:
+        if True:
+        # if rank == 1 and do_resize() > 0.5:
             image, depth_gt, intrinsics = augment_long_range(image, depth_gt, intrinsics, alpha=1.5)
             
         # do_resize = random.random()
@@ -356,7 +363,7 @@ class ToTensor(object):
     def __call__(self, sample):
         image, focal = sample['image'], sample['focal']
         image = self.to_tensor(image)
-        image = self.normalize(image)
+        image[:3, ...] = self.normalize(image[:3, ...])
         image = pad_images(image, multiple_of=32)[0]
 
         if self.mode == 'test':
@@ -379,6 +386,8 @@ class ToTensor(object):
                 'pic should be PIL Image or ndarray. Got {}'.format(type(pic)))
 
         if isinstance(pic, np.ndarray):
+            if len(pic.shape) == 2:
+                pic = pic[..., None]
             img = torch.from_numpy(pic.transpose((2, 0, 1)))
             return img
 

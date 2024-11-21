@@ -43,6 +43,7 @@ class DecoderBN(nn.Module):
         # self.act_out = nn.Softmax(dim=1) if output_activation == 'softmax' else nn.Identity()
 
     def forward(self, features, intrinsics):
+        features, sam_features = features
         x_block0, x_block1, x_block2, x_block3, x_block4 = features[4], features[5], features[6], features[8], features[
             11]
 
@@ -59,6 +60,9 @@ class DecoderBN(nn.Module):
         x_d4 = self.up4(x_d3, x_block0)
         #         x_d5 = self.up5(x_d4, features[0])
         out = self.conv3(x_d4)
+        with torch.no_grad():
+            sam_features = torch.nn.functional.interpolate(sam_features, out.shape[2:], mode='bilinear', align_corners=True)
+        out = torch.cat([out, sam_features], dim=1)
         # out = self.act_out(out)
         # if with_features:
         #     return out, features[-1]
@@ -73,14 +77,14 @@ class Encoder(nn.Module):
         self.original_model = backend
 
     def forward(self, x):
-        features = [x]
+        features = [x[:, :3, ...]]
         for k, v in self.original_model._modules.items():
             if (k == 'blocks'):
                 for ki, vi in v._modules.items():
                     features.append(vi(features[-1]))
             else:
                 features.append(v(features[-1]))
-        return features
+        return (features, x[:, 3:, ...])
 
 
 class UnetAdaptiveBins(nn.Module):
@@ -90,7 +94,7 @@ class UnetAdaptiveBins(nn.Module):
         self.min_val = min_val
         self.max_val = max_val
         self.encoder = Encoder(backend)
-        self.adaptive_bins_layer = mViT(128, n_query_channels=128, patch_size=16,
+        self.adaptive_bins_layer = mViT(160, n_query_channels=128, patch_size=16,
                                         dim_out=n_bins,
                                         embedding_dim=128, norm=norm)
 
