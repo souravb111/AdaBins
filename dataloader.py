@@ -226,7 +226,8 @@ class DataLoadPreprocess(Dataset):
 
         image = Image.open(raw_path)
         depth_gt = Image.open(gt_path)
-        sam_feats = torch.load(sam_feats_path)
+        # sam_feats = torch.load(sam_feats_path)
+        sam_feats = np.zeros_like(image)
 
         if self.args.dataset == 'kitti':
             self.image_height = 250
