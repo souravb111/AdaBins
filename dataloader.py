@@ -261,6 +261,7 @@ class DataLoadPreprocess(Dataset):
             sample = {'image': image, 'depth': depth_gt, 'focal': focal, 'depth_mask': depth_gt_mask, 'intrinsics': intrinsics}
         else:
             image = np.asarray(image, dtype=np.float32) / 255.0
+            image = np.concatenate([image, sam_feats], axis=2)
             depth_gt = np.asarray(depth_gt, dtype=np.float32)
             depth_gt = np.expand_dims(depth_gt, axis=2)
             depth_gt = depth_gt / self.depth_normalizer
