@@ -226,7 +226,7 @@ class DataLoadPreprocess(Dataset):
 
         image = Image.open(raw_path)
         depth_gt = Image.open(gt_path)
-        # sam_feats = torch.load(sam_feats_path)
+        sam_feats = torch.load(sam_feats_path, weights_only=True)
 
         if self.args.dataset == 'kitti':
             self.image_height = 250
@@ -236,13 +236,13 @@ class DataLoadPreprocess(Dataset):
             left_margin = int((width - self.image_width) / 2)
             image = image.crop((left_margin, top_margin, left_margin + self.image_width, top_margin + self.image_height))
             depth_gt = depth_gt.crop((left_margin, top_margin, left_margin + self.image_width, top_margin + self.image_height))
-            # sam_feats = sam_feats[..., top_margin:top_margin+self.image_height, left_margin:left_margin+self.image_width]
+            sam_feats = sam_feats[..., top_margin:top_margin+self.image_height, left_margin:left_margin+self.image_width]
         else:
             depth_gt = depth_gt.crop((43, 45, 608, 472))
             image = image.crop((43, 45, 608, 472))
             self.image_height = 416
             self.image_width = 544
-        # sam_feats = sam_feats[0, ...].permute(1, 2, 0).numpy()
+        sam_feats = sam_feats[0, ...].permute(1, 2, 0).numpy()
                 
         if self.mode == 'train':
             # if self.args.do_random_rotate is True:
@@ -255,7 +255,7 @@ class DataLoadPreprocess(Dataset):
             depth_gt = np.asarray(depth_gt, dtype=np.float32)
             depth_gt = np.expand_dims(depth_gt, axis=2)
             depth_gt = depth_gt / self.depth_normalizer
-            sam_feats = np.zeros_like(image)
+            # sam_feats = np.zeros_like(image)
             image = np.concatenate([image, sam_feats], axis=2)
             image, depth_gt, intrinsics = self.train_preprocess(image, depth_gt, intrinsics)
             depth_gt_mask = np.logical_and(depth_gt > self.depth_min, depth_gt < self.depth_max)

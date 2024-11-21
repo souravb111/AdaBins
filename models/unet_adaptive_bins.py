@@ -60,9 +60,9 @@ class DecoderBN(nn.Module):
         x_d4 = self.up4(x_d3, x_block0)
         #         x_d5 = self.up5(x_d4, features[0])
         out = self.conv3(x_d4)
-        # with torch.no_grad():
-        #     sam_features = torch.nn.functional.interpolate(sam_features, out.shape[2:], mode='bilinear', align_corners=True)
-        # out = torch.cat([out, sam_features], dim=1)
+        with torch.no_grad():
+            sam_features = torch.nn.functional.interpolate(sam_features, out.shape[2:], mode='bilinear', align_corners=True)
+        out = torch.cat([out, sam_features], dim=1)
         
         # out = self.act_out(out)
         # if with_features:
@@ -95,7 +95,7 @@ class UnetAdaptiveBins(nn.Module):
         self.min_val = min_val
         self.max_val = max_val
         self.encoder = Encoder(backend)
-        self.adaptive_bins_layer = mViT(128, n_query_channels=128, patch_size=16,
+        self.adaptive_bins_layer = mViT(128+32, n_query_channels=128, patch_size=16,
                                         dim_out=n_bins,
                                         embedding_dim=128, norm=norm)
 
