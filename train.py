@@ -332,7 +332,7 @@ if __name__ == '__main__':
     parser.add_argument("--dataset", default='nyu', type=str, help="Dataset to train on")
 
     parser.add_argument('--filenames_file',
-                        default="./process_nyu_data/nyu_depth_v2_train.csv",
+                        default="./nyu/nyu_depth_v2_train.csv",
                         type=str, help='path to the filenames text file')
 
     parser.add_argument('--input_height', type=int, help='input height', default=416)
@@ -347,7 +347,7 @@ if __name__ == '__main__':
                         action='store_true')
 
     parser.add_argument('--filenames_file_eval',
-                        default="./process_nyu_data/nyu_depth_v2_mini_val.csv",
+                        default="./nyu/nyu_depth_v2_val.csv",
                         type=str, help='path to the filenames text file for online evaluation')
 
     parser.add_argument('--eigen_crop', default=True, help='if set, crops according to Eigen NIPS14',
