@@ -1,8 +1,7 @@
 # This file is mostly taken from BTS; author: Jin Han Lee, with only slight modifications
 
-import os
+import PIL
 import random
-from pathlib import Path
 
 import numpy as np
 import torch
@@ -108,6 +107,14 @@ class DataLoadPreprocess(Dataset):
             raise NotImplementedError
 
     def __getitem__(self, idx):
+        try:
+            return self._getitem__(idx)
+        except PIL.UnidentifiedImageError:
+            print(f"Encountered Pillow loading error on {idx} with raw path {self.raw_paths[idx]} and gt path {self.gt_paths[idx]}")
+            rand_idx = torch.randint(0, len(self), (1,)).item()
+            return self.__getitem__(rand_idx)
+
+    def _getitem__(self, idx):
         raw_path = self.raw_paths[idx]
         gt_path = self.gt_paths[idx]
         # This param shouldn't matter
