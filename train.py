@@ -21,6 +21,13 @@ from dataloader import DepthDataLoader, KITTI_DEPTH_MAX, KITTI_DEPTH_MIN, NYU_DE
 from loss import SILogLoss, BinsChamferLoss
 from utils import RunningAverage, colorize
 
+import random
+torch.backends.cudnn.deterministic = True
+random.seed(1)
+torch.manual_seed(1)
+torch.cuda.manual_seed(1)
+np.random.seed(1)
+
 # os.environ['WANDB_MODE'] = 'dryrun'
 PROJECT = "adabins"
 logging = True
