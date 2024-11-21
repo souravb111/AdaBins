@@ -231,6 +231,10 @@ def train(model, args, epochs=10, experiment_name="DeepLab", lr=0.0001, root="."
                     best_loss = metrics['abs_rel']
                 model.train()
                 #################################################################################################
+            
+            if step % 100 == 0:
+                model_io.save_checkpoint(model, optimizer, epoch, f"{experiment_name}_{run_id}_latest.pt",
+                                            root=os.path.join(root, "checkpoints"))
 
     return model
 
