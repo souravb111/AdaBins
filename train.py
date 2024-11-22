@@ -189,7 +189,7 @@ def train(model, args, epochs=10, experiment_name="DeepLab", lr=0.0001, root="."
             intrinsics = batch['intrinsics']
 
             # Long range augmentation
-            if random.random() < 1.0:
+            if random.random() < -90.0:
                 img, depth, intrinsics = augment_long_range_tensors(img, depth, intrinsics, alpha=1.333)
                 depth_mask = torch.logical_and(depth > args.min_depth, depth < args.max_depth)
             
