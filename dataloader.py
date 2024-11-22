@@ -132,6 +132,43 @@ def augment_long_range(
     return img_mapped, depth_map_mapped, intrinsics
 
 
+def augment_long_range_tensors(
+    image,
+    depth_map,
+    intrinsics,
+    alpha: float,
+):
+    """Apply long range augmentation to all cameras.
+    - Performs a local optimization of alpha in range [alpha-0.1, alpha+0.1] to minimize padding for augmented image
+    - Augment intrinsics and extrinsics so that depth of projected lidar points is scaled by alpha in camera frame
+
+    Args:
+        image: dict of images from each camera for the last lidar bundle
+        alpha: scaling ratio for the image. Z-coordinate is scaled by (1/alpha)
+
+    Returns:
+        image: augmented dict of images from each camera for the last lidar bundle
+        camera_intrinsics: augmented intrinsics
+        camera_extrinsics: augmented extrinsics
+        alpha: locally optimized alpha
+    """
+    batch_size = image.size(0)
+    new_image, new_depth_map, new_intrinsics = [], [], []
+    for bi in range(batch_size):
+        image_bi = image[bi, ...].cpu().permute(1, 2, 0).numpy()
+        depth_map_bi = depth_map[bi, ...].cpu().permute(1, 2, 0).numpy()
+        intrinsics_bi = intrinsics[bi, ...].cpu().numpy()
+        
+        image_bi, depth_map_bi, intrinsics_bi = augment_long_range(image_bi, depth_map_bi, intrinsics_bi, alpha)
+        new_image.append(torch.from_numpy(image_bi).permute(2, 0, 1))
+        new_depth_map.append(torch.from_numpy(depth_map_bi).unsqueeze(2).permute(2, 0, 1))
+        new_intrinsics.append(torch.from_numpy(intrinsics_bi))
+    img_mapped = torch.stack(new_image)
+    depth_map_mapped = torch.stack(new_depth_map)
+    intrinsics_mapped = torch.stack(new_intrinsics)
+    return img_mapped, depth_map_mapped, intrinsics_mapped
+
+
 class DepthDataLoader(object):
     def __init__(self, args, mode):
         if mode == 'train':
@@ -312,17 +349,17 @@ class DataLoadPreprocess(Dataset):
         if do_augment > 0.5:
             image[..., :3] = self.augment_image(image[..., :3])
 
-        rank = torch.distributed.get_rank() if torch.distributed.is_initialized() else 0
+        # rank = torch.distributed.get_rank() if torch.distributed.is_initialized() else 0
         # if rank == 1:
         #     new_h, new_w = image.shape[0]*3//4, image.shape[1]*3//4
         #     image = cv2.resize(image, dsize=(new_w, new_h), interpolation=cv2.INTER_LINEAR)
         #     depth = cv2.resize(depth_gt, dsize=(new_w, new_h), interpolation=cv2.INTER_NEAREST)
         #     intrinsics *= 0.5
         #     intrinsics[2, 2] = 1
-        do_resize = random.random()
-        if rank == 1 and do_resize > 0.5:
-            print(f"Augmented")
-            image, depth_gt, intrinsics = augment_long_range(image, depth_gt, intrinsics, alpha=1.5)
+        # do_resize = random.random()
+        # if rank == 1 and do_resize > 0.5:
+        #     print(f"Augmented")
+        #     image, depth_gt, intrinsics = augment_long_range(image, depth_gt, intrinsics, alpha=1.5)
             
         # do_resize = random.random()
         # if do_resize > 0.5:
