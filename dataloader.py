@@ -143,8 +143,8 @@ class DepthDataLoader(object):
 
             self.data = DataLoader(self.training_samples, args.batch_size,
                                    shuffle=(self.train_sampler is None),
-                                   num_workers=args.num_threads,
-                                   pin_memory=True,
+                                   num_workers=0,
+                                   pin_memory=False,
                                    sampler=self.train_sampler)
 
         elif mode == 'eval':
@@ -156,7 +156,7 @@ class DepthDataLoader(object):
                 self.eval_sampler = None
             self.data = DataLoader(self.testing_samples, 1,
                                    shuffle=False,
-                                   num_workers=8,
+                                   num_workers=0,
                                    pin_memory=False,
                                    sampler=self.eval_sampler)
 
@@ -320,7 +320,8 @@ class DataLoadPreprocess(Dataset):
         #     intrinsics *= 0.5
         #     intrinsics[2, 2] = 1
         do_resize = random.random()
-        if rank == 1 and do_resize() > 0.5:
+        if rank == 1 and do_resize > 0.5:
+            print(f"Augmented")
             image, depth_gt, intrinsics = augment_long_range(image, depth_gt, intrinsics, alpha=1.5)
             
         # do_resize = random.random()
