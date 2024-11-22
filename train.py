@@ -3,10 +3,16 @@ import os
 import sys
 import uuid
 from datetime import datetime as dt
+import gc
+
+import resource
+rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
+resource.setrlimit(resource.RLIMIT_NOFILE, (99999, rlimit[1]))
 
 import random
 import numpy as np
 import torch
+torch.multiprocessing.set_sharing_strategy('file_system')
 import torch.distributed as dist
 import torch.multiprocessing as mp
 import torch.nn as nn
@@ -75,7 +81,6 @@ def log_images(img, depth, pred, args, step):
 
 
 def main_worker(gpu, ngpus_per_node, args):
-    torch.multiprocessing.set_sharing_strategy('file_system')
     args.gpu = gpu
 
     ###################################### Load model ##############################################
@@ -137,6 +142,9 @@ def train(model, args, epochs=10, experiment_name="DeepLab", lr=0.0001, root="."
     ################################################################################################
 
     train_loader = DepthDataLoader(args, 'train').data
+    for i, _ in enumerate(train_loader):
+        print(f"{i} / {train_loader}")
+    return
     test_loader = DepthDataLoader(args, 'eval').data 
 
     ###################################### losses ##############################################

@@ -180,8 +180,8 @@ class DepthDataLoader(object):
 
             self.data = DataLoader(self.training_samples, args.batch_size,
                                    shuffle=(self.train_sampler is None),
-                                   num_workers=8,
-                                   pin_memory=True,
+                                   num_workers=0,
+                                   pin_memory=False,
                                    sampler=self.train_sampler)
 
         elif mode == 'eval':
@@ -193,8 +193,8 @@ class DepthDataLoader(object):
                 self.eval_sampler = None
             self.data = DataLoader(self.testing_samples, 1,
                                    shuffle=False,
-                                   num_workers=8,
-                                   pin_memory=True,
+                                   num_workers=0,
+                                   pin_memory=False,
                                    sampler=self.eval_sampler)
 
         elif mode == 'test':
@@ -258,17 +258,19 @@ class DataLoadPreprocess(Dataset):
             intrinsics = self.intrinsics.copy()
             # TODO: sam_feats_path = ...
         else:
-            intrinsics_path = Path(raw_path).parent.parent.parent.parent / 'calib_cam_to_cam.txt'
-            with open(intrinsics_path, "r") as f:
-                intrinsics_str = yaml.safe_load(f)
-            intrinsics_str = intrinsics_str['K_02'] if 'image_02' in raw_path else intrinsics_str['K_03']
-            intrinsics = np.array([float(x) for x in intrinsics_str.split(' ')]).reshape((3, 3))
+            # intrinsics_path = Path(raw_path).parent.parent.parent.parent / 'calib_cam_to_cam.txt'
+            # with open(intrinsics_path, "r") as f:
+            #     intrinsics_str = yaml.safe_load(f)
+            # intrinsics_str = intrinsics_str['K_02'] if 'image_02' in raw_path else intrinsics_str['K_03']
+            # intrinsics = np.array([float(x) for x in intrinsics_str.split(' ')]).reshape((3, 3))
             sam_feats_path = raw_path.replace("kitti-depth", "kitti-depth-sam-feats")
+        intrinsics = np.eye(3)
         focal = 0.5 * (intrinsics[0, 0] + intrinsics[1, 1])
 
         image = Image.open(raw_path)
         depth_gt = Image.open(gt_path)
-        sam_feats = torch.load(sam_feats_path, mmap=True, map_location='cpu')
+        with open(sam_feats_path, "rb") as sam_feats_f:
+            sam_feats = torch.load(sam_feats_f, map_location='cpu')
 
         if self.args.dataset == 'kitti':
             self.image_height = 250

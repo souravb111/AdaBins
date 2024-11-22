@@ -61,7 +61,7 @@ class DecoderBN(nn.Module):
         #         x_d5 = self.up5(x_d4, features[0])
         out = self.conv3(x_d4)
         with torch.no_grad():
-            sam_features = torch.nn.functional.interpolate(sam_features, out.shape[2:], mode='bilinear', align_corners=True)
+            sam_features = torch.nn.functional.interpolate(sam_features, out.shape[2:], mode='bilinear', align_corners=True).detach()
         out = torch.cat([out, sam_features], dim=1)
         
         # out = self.act_out(out)
