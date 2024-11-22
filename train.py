@@ -189,10 +189,30 @@ def train(model, args, epochs=10, experiment_name="DeepLab", lr=0.0001, root="."
             intrinsics = batch['intrinsics']
 
             # Long range augmentation
-            if random.random() < 0.2:
+            if random.random() < 1.0:
                 img, depth, intrinsics = augment_long_range_tensors(img, depth, intrinsics, alpha=1.333)
                 depth_mask = torch.logical_and(depth > args.min_depth, depth < args.max_depth)
             
+            if 0:
+                def _norm(t):
+                    mi, ma = t.min(), t.max()
+                    mid = 0.5 * (mi + ma)
+                    rg = ma - mi
+
+                    t = (t - mid) / rg + 0.5
+                    return t
+
+                import PIL
+                img_ = img[0].permute(1, 2, 0)
+                rgb = _norm(img_[..., :3]).numpy()
+                sam_feats = _norm(img_[..., 3:].norm(2, -1)).numpy()
+
+                rgb = (255 * rgb).astype(np.uint8)
+                sam_feats = (255 * sam_feats).astype(np.uint8)
+
+                PIL.Image.fromarray(rgb).save(f"viz/{i}_rgb.png")
+                PIL.Image.fromarray(sam_feats).save(f"viz/{i}_sf.png")
+
             img = img.to(device)
             depth = depth.to(device)
             depth_mask = depth_mask.to(device)

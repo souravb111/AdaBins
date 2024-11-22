@@ -2,6 +2,7 @@
 
 import PIL
 import random
+import gc
 from pathlib import Path
 import yaml
 from typing import Tuple
@@ -253,6 +254,16 @@ class DataLoadPreprocess(Dataset):
             rand_idx = torch.randint(0, len(self), (1,)).item()
             return self.__getitem__(rand_idx)
 
+    def _load_sam_feats(self, raw_path: str) -> torch.Tensor:
+        sam_f_path = raw_path.replace("nyu_depth_v2_sync", "nyu_sam_feats")
+        sam_feats = torch.load(sam_f_path)
+        sam_feats_np = sam_feats.numpy()[0]
+        # https://github.com/pytorch/pytorch/issues/102334
+        del sam_feats
+        gc.collect()
+        return sam_feats_np
+
+
     def _getitem__(self, idx):
         raw_path = self.raw_paths[idx]
         gt_path = self.gt_paths[idx]
@@ -297,7 +308,9 @@ class DataLoadPreprocess(Dataset):
             depth_gt = depth_gt / self.depth_normalizer
             image, depth_gt, intrinsics = self.train_preprocess(image, depth_gt, intrinsics)
             depth_gt_mask = np.logical_and(depth_gt > self.depth_min, depth_gt < self.depth_max)
-            sample = {'image': image, 'depth': depth_gt, 'focal': focal, 'depth_mask': depth_gt_mask, 'intrinsics': intrinsics}
+            sam_feats = self._load_sam_feats(raw_path)[:, 45:472, 43:608].transpose(1, 2, 0)
+            image = np.concatenate((image, sam_feats), axis=-1)
+            sample = {'image': image, 'depth': depth_gt, 'focal': focal, 'depth_mask': depth_gt_mask, 'intrinsics': intrinsics, "sam_feats": sam_feats}
         else:
             image = np.asarray(image, dtype=np.float32) / 255.0
             depth_gt = np.asarray(depth_gt, dtype=np.float32)
@@ -402,7 +415,7 @@ class ToTensor(object):
     def __call__(self, sample):
         image, focal = sample['image'], sample['focal']
         image = self.to_tensor(image)
-        image = self.normalize(image)
+        image[:3] = self.normalize(image[:3])
         image = pad_images(image, multiple_of=32)[0]
 
         if self.mode == 'test':
