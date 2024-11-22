@@ -4,6 +4,7 @@ import sys
 import uuid
 from datetime import datetime as dt
 
+import random
 import numpy as np
 import torch
 import torch.distributed as dist
@@ -17,9 +18,14 @@ from tqdm import tqdm
 import model_io
 import models
 import utils
-from dataloader import DepthDataLoader, KITTI_DEPTH_MAX, KITTI_DEPTH_MIN, NYU_DEPTH_MAX, NYU_DEPTH_MIN
+from dataloader import DepthDataLoader, KITTI_DEPTH_MAX, KITTI_DEPTH_MIN, NYU_DEPTH_MAX, NYU_DEPTH_MIN, augment_long_range_tensors
 from loss import SILogLoss, BinsChamferLoss
 from utils import RunningAverage, colorize
+torch.backends.cudnn.deterministic = True
+random.seed(1)
+torch.manual_seed(1)
+torch.cuda.manual_seed(1)
+np.random.seed(1)
 
 # os.environ['WANDB_MODE'] = 'dryrun'
 PROJECT = "adabins"
@@ -177,13 +183,23 @@ def train(model, args, epochs=10, experiment_name="DeepLab", lr=0.0001, root="."
                              total=len(train_loader)) if is_rank_zero(
                 args) else enumerate(train_loader):
 
+            img = batch['image']
+            depth = batch['depth']
+            depth_mask = batch['depth_mask']
+            intrinsics = batch['intrinsics']
+
+            # Long range augmentation
+            if random.random() < 0.2:
+                img, depth, intrinsics = augment_long_range_tensors(img, depth, intrinsics, alpha=1.333)
+                depth_mask = torch.logical_and(depth > args.min_depth, depth < args.max_depth)
+            
+            img = img.to(device)
+            depth = depth.to(device)
+            depth_mask = depth_mask.to(device)
+            intrinsics = intrinsics.to(device)
+            
             optimizer.zero_grad()
-
-            img = batch['image'].to(device)
-            depth = batch['depth'].to(device)
-            depth_mask = batch['depth_mask'].to(device)
-            intrinsics = batch['intrinsics'].to(device)
-
+            
             bin_edges, pred = model(img, intrinsics)
             l_dense = criterion_ueff(pred, depth, mask=depth_mask.to(torch.bool), interpolate=True)
 
