@@ -199,7 +199,7 @@ class DepthDataLoader(object):
 
         elif mode == 'test':
             self.testing_samples = DataLoadPreprocess(args, mode, transform=preprocessing_transforms(mode))
-            self.data = DataLoader(self.testing_samples, 1, shuffle=False, num_workers=1)
+            self.data = DataLoader(self.testing_samples, 1, shuffle=False, num_workers=0, pin_memory=False)
 
         else:
             print('mode should be one of \'train, test, eval\'. Got {}'.format(mode))
@@ -302,8 +302,10 @@ class DataLoadPreprocess(Dataset):
             # sam_feats = np.zeros_like(image)
             image = np.concatenate([image, sam_feats], axis=2)
             image, depth_gt, intrinsics = self.train_preprocess(image, depth_gt, intrinsics)
+            sam_feats = image[..., 3:]
+            image = image[..., :3]
             depth_gt_mask = np.logical_and(depth_gt > self.depth_min, depth_gt < self.depth_max)
-            sample = {'image': image, 'depth': depth_gt, 'focal': focal, 'depth_mask': depth_gt_mask, 'intrinsics': intrinsics}
+            sample = {'image': image, 'depth': depth_gt, 'focal': focal, 'depth_mask': depth_gt_mask, 'intrinsics': intrinsics, 'sam_feats': sam_feats}
         else:
             image = np.asarray(image, dtype=np.float32) / 255.0
             image = np.concatenate([image, sam_feats], axis=2)
@@ -311,7 +313,7 @@ class DataLoadPreprocess(Dataset):
             depth_gt = np.expand_dims(depth_gt, axis=2)
             depth_gt = depth_gt / self.depth_normalizer
             depth_gt_mask = np.logical_and(depth_gt > self.depth_min, depth_gt < self.depth_max)
-            sample = {'image': image, 'depth': depth_gt, 'focal': focal, 'image_path': raw_path, 'depth_path': gt_path, 'depth_mask': depth_gt_mask, 'intrinsics': intrinsics}
+            sample = {'image': image, 'depth': depth_gt, 'focal': focal, 'image_path': raw_path, 'depth_path': gt_path, 'depth_mask': depth_gt_mask, 'intrinsics': intrinsics, 'sam_feats': sam_feats}
 
         if self.transform:
             sample = self.transform(sample)
@@ -421,10 +423,14 @@ class ToTensor(object):
         depth_mask = self.to_tensor(depth_mask)
         depth = pad_images(depth, multiple_of=32)[0]
         depth_mask = pad_images(depth_mask, multiple_of=32)[0]
+        
+        sam_feats = sample['sam_feats']
+        sam_feats = self.to_tensor(sam_feats)
+        sam_feats = pad_images(sam_feats, multiple_of=32)[0]
         if self.mode == 'train':
-            return {'image': image, 'depth': depth, 'focal': focal, 'depth_mask': depth_mask, 'intrinsics': intrinsics}
+            return {'image': image, 'depth': depth, 'focal': focal, 'depth_mask': depth_mask, 'intrinsics': intrinsics, 'sam_feats': sam_feats}
         else:
-            return {'image': image, 'depth': depth, 'focal': focal, 'image_path': sample['image_path'], 'depth_path': sample['depth_path'], 'depth_mask': depth_mask, 'intrinsics': intrinsics}
+            return {'image': image, 'depth': depth, 'focal': focal, 'image_path': sample['image_path'], 'depth_path': sample['depth_path'], 'depth_mask': depth_mask, 'intrinsics': intrinsics, 'sam_feats': sam_feats}
 
     def to_tensor(self, pic):
         if not (_is_pil_image(pic) or _is_numpy_image(pic)):

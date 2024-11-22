@@ -142,9 +142,6 @@ def train(model, args, epochs=10, experiment_name="DeepLab", lr=0.0001, root="."
     ################################################################################################
 
     train_loader = DepthDataLoader(args, 'train').data
-    for i, _ in enumerate(train_loader):
-        print(f"{i} / {train_loader}")
-    return
     test_loader = DepthDataLoader(args, 'eval').data 
 
     ###################################### losses ##############################################
@@ -196,6 +193,7 @@ def train(model, args, epochs=10, experiment_name="DeepLab", lr=0.0001, root="."
             depth = batch['depth']
             depth_mask = batch['depth_mask']
             intrinsics = batch['intrinsics']
+            sam_feats = batch['sam_feats']
 
             # # Long range augmentation
             # if random.random() < 0.2:
@@ -206,10 +204,11 @@ def train(model, args, epochs=10, experiment_name="DeepLab", lr=0.0001, root="."
             depth = depth.to(device)
             depth_mask = depth_mask.to(device)
             intrinsics = intrinsics.to(device)
+            # sam_feats = sam_feats.to(device)
             
             optimizer.zero_grad()
             
-            bin_edges, pred = model(img, intrinsics)
+            bin_edges, pred = model(img, intrinsics, sam_feats)
             l_dense = criterion_ueff(pred, depth, mask=depth_mask.to(torch.bool), interpolate=True)
 
             if args.w_chamfer > 0:
@@ -232,6 +231,8 @@ def train(model, args, epochs=10, experiment_name="DeepLab", lr=0.0001, root="."
 
             step += 1
             scheduler.step()
+            # if i % 100 == 0:
+            #     os.system('sudo sh -c "echo 3 >/proc/sys/vm/drop_caches"')
 
             ########################################################################################################
             if should_write and step % args.validate_every == 0:
@@ -273,7 +274,8 @@ def validate(args, model, test_loader, criterion_ueff, epoch, epochs, device='cp
             depth = depth.squeeze().unsqueeze(0).unsqueeze(0)
             depth_mask = batch['depth_mask'].to(device).squeeze(-1)
             intrinsics = batch['intrinsics'].to(device)
-            bins, pred = model(img, intrinsics)
+            sam_feats = batch['sam_feats'].to(device)
+            bins, pred = model(img, intrinsics, sam_feats)
 
             l_dense = criterion_ueff(pred, depth, mask=depth_mask.to(torch.bool), interpolate=True)
             val_si.append(l_dense.item())
