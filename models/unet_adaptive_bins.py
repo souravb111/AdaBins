@@ -42,7 +42,7 @@ class DecoderBN(nn.Module):
         self.conv3 = nn.Conv2d(features // 16, num_classes, kernel_size=3, stride=1, padding=1)
         # self.act_out = nn.Softmax(dim=1) if output_activation == 'softmax' else nn.Identity()
 
-    def forward(self, features, intrinsics):
+    def forward(self, features, intrinsics=None):
         features, sam_features = features
         x_block0, x_block1, x_block2, x_block3, x_block4 = features[4], features[5], features[6], features[8], features[
             11]
@@ -103,8 +103,8 @@ class UnetAdaptiveBins(nn.Module):
         self.conv_out = nn.Sequential(nn.Conv2d(128, n_bins, kernel_size=1, stride=1, padding=0),
                                       nn.Softmax(dim=1))
 
-    def forward(self, x, intrinsics, **kwargs):
-        unet_out = self.decoder(self.encoder(x), intrinsics, **kwargs)
+    def forward(self, x, intrinsics=None, **kwargs):
+        unet_out = self.decoder(self.encoder(x), intrinsics=intrinsics, **kwargs)
         bin_widths_normed, range_attention_maps = self.adaptive_bins_layer(unet_out)
         out = self.conv_out(range_attention_maps)
 
