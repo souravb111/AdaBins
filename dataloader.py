@@ -180,8 +180,8 @@ class DepthDataLoader(object):
 
             self.data = DataLoader(self.training_samples, args.batch_size,
                                    shuffle=(self.train_sampler is None),
-                                   num_workers=0,
-                                   pin_memory=False,
+                                   num_workers=8,
+                                   pin_memory=True,
                                    sampler=self.train_sampler)
 
         elif mode == 'eval':
@@ -193,8 +193,8 @@ class DepthDataLoader(object):
                 self.eval_sampler = None
             self.data = DataLoader(self.testing_samples, 1,
                                    shuffle=False,
-                                   num_workers=0,
-                                   pin_memory=False,
+                                   num_workers=8,
+                                   pin_memory=True,
                                    sampler=self.eval_sampler)
 
         elif mode == 'test':
@@ -268,7 +268,7 @@ class DataLoadPreprocess(Dataset):
 
         image = Image.open(raw_path)
         depth_gt = Image.open(gt_path)
-        sam_feats = torch.load(sam_feats_path, weights_only=True)
+        sam_feats = torch.load(sam_feats_path, mmap=True, map_location='cpu')
 
         if self.args.dataset == 'kitti':
             self.image_height = 250

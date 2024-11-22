@@ -75,6 +75,7 @@ def log_images(img, depth, pred, args, step):
 
 
 def main_worker(gpu, ngpus_per_node, args):
+    torch.multiprocessing.set_sharing_strategy('file_system')
     args.gpu = gpu
 
     ###################################### Load model ##############################################
@@ -188,10 +189,10 @@ def train(model, args, epochs=10, experiment_name="DeepLab", lr=0.0001, root="."
             depth_mask = batch['depth_mask']
             intrinsics = batch['intrinsics']
 
-            # Long range augmentation
-            if random.random() < 0.2:
-                img, depth, intrinsics = augment_long_range_tensors(img, depth, intrinsics, alpha=1.333)
-                depth_mask = torch.logical_and(depth > args.min_depth, depth < args.max_depth)
+            # # Long range augmentation
+            # if random.random() < 0.2:
+            #     img, depth, intrinsics = augment_long_range_tensors(img, depth, intrinsics, alpha=1.333)
+            #     depth_mask = torch.logical_and(depth > args.min_depth, depth < args.max_depth)
             
             img = img.to(device)
             depth = depth.to(device)
