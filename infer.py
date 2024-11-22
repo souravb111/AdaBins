@@ -11,6 +11,7 @@ from tqdm import tqdm
 import model_io
 import utils
 from models import UnetAdaptiveBins
+from dataloader import KITTI_DEPTH_MAX, KITTI_DEPTH_MIN, NYU_DEPTH_MAX, NYU_DEPTH_MIN
 
 
 def _is_pil_image(img):
@@ -64,21 +65,21 @@ class ToTensor(object):
 
 
 class InferenceHelper:
-    def __init__(self, dataset='nyu', device='cuda:0'):
+    def __init__(self, checkpoint, dataset='nyu', device='cuda:0'):
         self.toTensor = ToTensor()
         self.device = device
         if dataset == 'nyu':
-            self.min_depth = 1e-3
-            self.max_depth = 10
+            self.min_depth = NYU_DEPTH_MIN
+            self.max_depth = NYU_DEPTH_MAX
             self.saving_factor = 1000  # used to save in 16 bit
             model = UnetAdaptiveBins.build(n_bins=256, min_val=self.min_depth, max_val=self.max_depth)
-            pretrained_path = "./pretrained/AdaBins_nyu.pt"
+            pretrained_path = checkpoint
         elif dataset == 'kitti':
-            self.min_depth = 1e-3
-            self.max_depth = 80
+            self.min_depth = KITTI_DEPTH_MIN
+            self.max_depth = KITTI_DEPTH_MAX
             self.saving_factor = 256
             model = UnetAdaptiveBins.build(n_bins=256, min_val=self.min_depth, max_val=self.max_depth)
-            pretrained_path = "./pretrained/AdaBins_kitti.pt"
+            pretrained_path = checkpoint
         else:
             raise ValueError("dataset can be either 'nyu' or 'kitti' but got {}".format(dataset))
 
@@ -149,13 +150,52 @@ class InferenceHelper:
 
 
 if __name__ == '__main__':
+    import os
+    import debugpy
+    if os.environ.get("ENABLE_DEBUGPY"):
+        print("listening...")
+        debugpy.listen(("127.0.0.1", 5678))
+        debugpy.wait_for_client()
+        
     import matplotlib.pyplot as plt
     from time import time
+    checkpoint = "/home/cfang/AdaBins/checkpoints/kitti_150_lr_aug.py"
+    # checkpoint = "/mnt/remote/shared_data/users/cfang/AdaBins/checkpoints/kitti_150_baseline.pt"
+    dataset = "kitti"
+    filenames_file_eval = "/home/cfang/AdaBins/kitti/kitti_val.csv"
+    num_samples = 10
+    
+    inferHelper = InferenceHelper(checkpoint=checkpoint, dataset=dataset)
+    
+    with open(filenames_file_eval, 'r') as f:
+        raw_gt_tuples = f.readlines()
+        raw_paths, gt_paths = zip(*[fn.split(',') for fn in raw_gt_tuples])
+        raw_paths = [p.replace('\n', '') for p in raw_paths]
+        gt_paths = [p.replace('\n', '') for p in gt_paths]
+    
+    rand_perm = torch.randperm(len(raw_paths))
+    for i in range(num_samples):
+        idx = rand_perm[i].item()
+        raw_path, gt_path = raw_paths[idx], gt_paths[idx]
+        image = Image.open(raw_path)
 
-    img = Image.open("test_imgs/classroom__rgb_00283.jpg")
-    start = time()
-    inferHelper = InferenceHelper()
-    centers, pred = inferHelper.predict_pil(img)
-    print(f"took :{time() - start}s")
-    plt.imshow(pred.squeeze(), cmap='magma_r')
-    plt.show()
+        centers, pred = inferHelper.predict_pil(image)
+        fig = plt.figure(figsize=(10, 10))
+        ax = fig.add_subplot(311)
+        ax.imshow(image)
+        ax.axis('off')
+        # ax.set_title("Input")
+        
+        ax = fig.add_subplot(312)
+        ax.imshow(pred.squeeze(), cmap='magma_r')
+        ax.axis('off')
+        # ax.set_title("Pred")
+        
+        depth_gt = np.array(Image.open(gt_path)) / 256.0
+        ax = fig.add_subplot(313)
+        ax.imshow(depth_gt, cmap='magma_r')
+        ax.axis('off')
+        
+        plt.savefig(f"viz_imgs/output_aug_{i}.jpg")
+        plt.close(fig)
+    
