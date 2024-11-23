@@ -5,6 +5,8 @@ import torch.nn.functional as F
 from .miniViT import mViT
 
 
+USE_SAM = False
+
 class UpSampleBN(nn.Module):
     def __init__(self, skip_input, output_features):
         super(UpSampleBN, self).__init__()
@@ -61,8 +63,9 @@ class DecoderBN(nn.Module):
         #         x_d5 = self.up5(x_d4, features[0])
         out = self.conv3(x_d4)
         
-        sam_features = torch.nn.functional.interpolate(sam_features, out.shape[2:], mode='bilinear', align_corners=True)
-        out = torch.cat([out, sam_features], dim=1)
+        if USE_SAM:
+            sam_features = torch.nn.functional.interpolate(sam_features, out.shape[2:], mode='bilinear', align_corners=True)
+            out = torch.cat([out, sam_features], dim=1)
         # out = self.act_out(out)
         # if with_features:
         #     return out, features[-1]
@@ -95,7 +98,8 @@ class UnetAdaptiveBins(nn.Module):
         self.min_val = min_val
         self.max_val = max_val
         self.encoder = Encoder(backend)
-        self.adaptive_bins_layer = mViT(128 + 32, n_query_channels=128, patch_size=16,
+        plus = 32 if USE_SAM else 0
+        self.adaptive_bins_layer = mViT(128 + plus, n_query_channels=128, patch_size=16,
                                         dim_out=n_bins,
                                         embedding_dim=128, norm=norm)
 

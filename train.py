@@ -183,15 +183,38 @@ def train(model, args, epochs=10, experiment_name="DeepLab", lr=0.0001, root="."
                              total=len(train_loader)) if is_rank_zero(
                 args) else enumerate(train_loader):
 
-            img = batch['image']
-            depth = batch['depth']
-            depth_mask = batch['depth_mask']
-            intrinsics = batch['intrinsics']
+            
+            def _forward(dataset):
+                if batch[f"image_{dataset}"] is None:
+                    return 0, 0, 0
 
-            # Long range augmentation
-            if random.random() < -90.0:
-                img, depth, intrinsics = augment_long_range_tensors(img, depth, intrinsics, alpha=1.333)
-                depth_mask = torch.logical_and(depth > args.min_depth, depth < args.max_depth)
+                img = batch[f'image_{dataset}']
+                depth = batch[f'depth_{dataset}']
+                depth_mask = batch[f'depth_mask_{dataset}']
+                # intrinsics = batch['intrinsics']
+
+                # Long range augmentation
+                if random.random() < -90.0:
+                    img, depth, intrinsics = augment_long_range_tensors(img, depth, intrinsics, alpha=1.333)
+                    depth_mask = torch.logical_and(depth > args.min_depth, depth < args.max_depth)
+                
+                img = img.to(device)
+                depth = depth.to(device)
+                depth_mask = depth_mask.to(device)
+                # intrinsics = intrinsics.to(device)
+                intrinsics = None
+                
+                bin_edges, pred = model(img, intrinsics)
+                l_dense = criterion_ueff(pred, depth, mask=depth_mask.to(torch.bool), interpolate=True)
+
+                if args.w_chamfer > 0:
+                    l_chamfer = criterion_bins(bin_edges, depth)
+                else:
+                    l_chamfer = torch.Tensor([0]).to(img.device)
+
+                loss = l_dense + args.w_chamfer * l_chamfer
+                num = img.shape[0]
+                return loss * num, l_dense * num, l_chamfer * num
             
             if 0:
                 def _norm(t):
@@ -212,23 +235,15 @@ def train(model, args, epochs=10, experiment_name="DeepLab", lr=0.0001, root="."
 
                 PIL.Image.fromarray(rgb).save(f"viz/{i}_rgb.png")
                 PIL.Image.fromarray(sam_feats).save(f"viz/{i}_sf.png")
-
-            img = img.to(device)
-            depth = depth.to(device)
-            depth_mask = depth_mask.to(device)
-            intrinsics = intrinsics.to(device)
             
+
+            loss, l_dense, l_chamfer = _forward("kitti")
+            loss2, l_dense2, l_chamfer2 = _forward("nyu")
+            loss = (loss + loss2) / args.bs
+            l_dense = (l_dense + l_dense2) / args.bs
+            l_chamfer = (l_chamfer + l_chamfer2) / args.bs
+
             optimizer.zero_grad()
-            
-            bin_edges, pred = model(img, intrinsics)
-            l_dense = criterion_ueff(pred, depth, mask=depth_mask.to(torch.bool), interpolate=True)
-
-            if args.w_chamfer > 0:
-                l_chamfer = criterion_bins(bin_edges, depth)
-            else:
-                l_chamfer = torch.Tensor([0]).to(img.device)
-
-            loss = l_dense + args.w_chamfer * l_chamfer
             loss.backward()
             nn.utils.clip_grad_norm_(model.parameters(), 0.1)  # optional
             optimizer.step()
@@ -395,6 +410,7 @@ if __name__ == '__main__':
     parser.add_argument('--eigen_crop', default=True, help='if set, crops according to Eigen NIPS14',
                         action='store_true')
     parser.add_argument('--garg_crop', help='if set, crops according to Garg  ECCV16', action='store_true')
+    parser.add_argument('--both_data', default=False, action='store_true')
 
     if sys.argv.__len__() == 2:
         arg_filename_with_prefix = '@' + sys.argv[1]
@@ -436,7 +452,8 @@ if __name__ == '__main__':
     args.num_workers = args.workers
     args.ngpus_per_node = ngpus_per_node
 
-    if args.dataset == 'kitti':
+    if args.dataset == 'kitti' or args.both_data:
+        print("USING KITTI MAX DEPTH")
         args.min_depth, args.max_depth = KITTI_DEPTH_MIN, KITTI_DEPTH_MAX
     elif args.dataset == 'nyu':
         args.min_depth, args.max_depth = NYU_DEPTH_MIN, NYU_DEPTH_MAX

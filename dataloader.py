@@ -167,8 +167,11 @@ def augment_long_range_tensors(
 
 class DepthDataLoader(object):
     def __init__(self, args, mode):
+        dataset_cls = BothDatasets if args.both_data else DataLoadPreprocess
+        collate = collate_both if args.both_data else None
         if mode == 'train':
-            self.training_samples = DataLoadPreprocess(args, mode, transform=preprocessing_transforms(mode))
+            #self.training_samples = DataLoadPreprocess(args, mode, transform=preprocessing_transforms(mode))
+            self.training_samples = dataset_cls(args, mode, transform=preprocessing_transforms(mode))
             if args.distributed:
                 self.train_sampler = torch.utils.data.distributed.DistributedSampler(self.training_samples)
             else:
@@ -178,10 +181,13 @@ class DepthDataLoader(object):
                                    shuffle=(self.train_sampler is None),
                                    num_workers=args.num_threads,
                                    pin_memory=True,
-                                   sampler=self.train_sampler)
+                                   sampler=self.train_sampler,
+                                   collate_fn=collate,
+                                   )
 
         elif mode == 'eval':
-            self.testing_samples = DataLoadPreprocess(args, mode, transform=preprocessing_transforms(mode))
+            #self.testing_samples = DataLoadPreprocess(args, mode, transform=preprocessing_transforms(mode))
+            self.testing_samples = dataset_cls(args, mode, transform=preprocessing_transforms(mode))
             if args.distributed:  # redundant. here only for readability and to be more explicit
                 # Give whole test set to all processes (and perform/report evaluation only on one) regardless
                 self.eval_sampler = None
@@ -191,7 +197,9 @@ class DepthDataLoader(object):
                                    shuffle=False,
                                    num_workers=8,
                                    pin_memory=False,
-                                   sampler=self.eval_sampler)
+                                   sampler=self.eval_sampler,
+                                   collate_fn=collate,
+                                   )
 
         elif mode == 'test':
             self.testing_samples = DataLoadPreprocess(args, mode, transform=preprocessing_transforms(mode))
@@ -427,10 +435,12 @@ class ToTensor(object):
         depth_mask = self.to_tensor(depth_mask)
         depth = pad_images(depth, multiple_of=32)[0]
         depth_mask = pad_images(depth_mask, multiple_of=32)[0]
+
+        dataset = sample["dataset"]
         if self.mode == 'train':
-            return {'image': image, 'depth': depth, 'focal': focal, 'depth_mask': depth_mask, 'intrinsics': intrinsics}
+            return {f'image_{dataset}': image, f'depth_{dataset}': depth, 'focal': focal, f'depth_mask_{dataset}': depth_mask, 'intrinsics': intrinsics}
         else:
-            return {'image': image, 'depth': depth, 'focal': focal, 'image_path': sample['image_path'], 'depth_path': sample['depth_path'], 'depth_mask': depth_mask, 'intrinsics': intrinsics}
+            return {f'image_{dataset}': image, f'depth_{dataset}': depth, 'focal': focal, 'image_path': sample['image_path'], 'depth_path': sample['depth_path'], f'depth_mask_{dataset}': depth_mask, 'intrinsics': intrinsics}
 
     def to_tensor(self, pic):
         if not (_is_pil_image(pic) or _is_numpy_image(pic)):
@@ -462,3 +472,189 @@ class ToTensor(object):
             return img.float()
         else:
             return img
+
+
+class BothDatasets(Dataset):
+    def _read_split(self, split):
+        with open(split, 'r') as f:
+            raw_gt_tuples = f.readlines()
+            raw_paths, gt_paths = zip(*[fn.split(',') for fn in raw_gt_tuples])
+            raw_paths = [p.replace('\n', '') for p in raw_paths]
+            gt_paths = [p.replace('\n', '') for p in gt_paths]
+        return raw_paths, gt_paths
+
+    def _get_kitti_paths(self):
+        split = "kitti/kitti_train.csv" if self.mode == "train" else "kitti/kitti_val.csv"
+        return self._read_split(split)
+    
+    def _get_nyu_paths(self):
+        split = "nyu/nyu_depth_v2_train.csv" if self.mode == "train" else "nyu/nyu_depth_v2_val.csv"
+        return self._read_split(split)
+
+    def __init__(self, args, mode, transform=None, eval=False):
+        self.args = args
+        self.mode = mode
+        self.transform = transform
+        self.to_tensor = ToTensor
+        self.eval = eval
+        self.image_height, self.image_width = None, None
+        
+        kitti_raw_paths, kitti_gt_paths = self._get_kitti_paths()
+        nyu_raw_paths, nyu_gt_paths = self._get_nyu_paths()
+
+        self.raw_paths = kitti_raw_paths + nyu_raw_paths
+        self.gt_paths = kitti_gt_paths + nyu_gt_paths
+        self.path_to_dataset = {pth:"kitti" for pth in kitti_raw_paths} | {pth:"nyu" for pth in nyu_raw_paths}
+
+        self.nyu_normalizer = 65535 / 10.0
+        self.kitti_normalizer = 256
+        self.depth_min = 1e-3
+        self.depth_max = 100
+        # TODO intrinsics if needed
+
+    #def __getitem__(self, idx):
+    #    try:
+    #        return self._getitem__(idx)
+    #    except PIL.UnidentifiedImageError:
+    #        print(f"Encountered Pillow loading error on {idx} with raw path {self.raw_paths[idx]} and gt path {self.gt_paths[idx]}")
+    #        rand_idx = torch.randint(0, len(self), (1,)).item()
+    #        return self.__getitem__(rand_idx)
+
+    def _load_sam_feats(self, raw_path: str) -> torch.Tensor:
+        sam_f_path = raw_path.replace("nyu_depth_v2_sync", "nyu_sam_feats")
+        sam_feats = torch.load(sam_f_path)
+        sam_feats_np = sam_feats.numpy()[0]
+        # https://github.com/pytorch/pytorch/issues/102334
+        del sam_feats
+        gc.collect()
+        return sam_feats_np
+
+
+    def __getitem__(self, idx):
+        raw_path = self.raw_paths[idx]
+        gt_path = self.gt_paths[idx]
+        dataset = self.path_to_dataset[raw_path]
+        depth_norm = self.kitti_normalizer if dataset == "kitti" else self.nyu_normalizer
+
+        image = Image.open(raw_path)
+        depth_gt = Image.open(gt_path)
+
+        # TODO intrinsics if needed
+        intrinsics = np.zeros((3, 3))
+        focal = 0.
+
+        if dataset == 'kitti':
+            height, width = image.height, image.width
+            top_margin = int(height - 352)
+            left_margin = int((width - 1216) / 2)
+            image = image.crop((left_margin, top_margin, left_margin + 1216, top_margin + 352))
+            depth_gt = depth_gt.crop((left_margin, top_margin, left_margin + 1216, top_margin + 352))
+            self.image_height = 352
+            self.image_width = 1216
+        else:
+            depth_gt = depth_gt.crop((43, 45, 608, 472))
+            image = image.crop((43, 45, 608, 472))
+            self.image_height = 416
+            self.image_width = 544
+                
+        if self.mode == 'train':
+            image = np.asarray(image, dtype=np.float32) / 255.0
+            depth_gt = np.asarray(depth_gt, dtype=np.float32)
+            depth_gt = np.expand_dims(depth_gt, axis=2)
+            depth_gt = depth_gt / depth_norm
+            image, depth_gt, intrinsics = self.train_preprocess(image, depth_gt, intrinsics)
+            depth_gt_mask = np.logical_and(depth_gt > self.depth_min, depth_gt < self.depth_max)
+            sample = {
+                'image': image, 
+                'depth': depth_gt, 
+                'focal': focal, 
+                'depth_mask': depth_gt_mask, 
+                'intrinsics': intrinsics,
+                "dataset": dataset, 
+            }
+        else:
+            image = np.asarray(image, dtype=np.float32) / 255.0
+            depth_gt = np.asarray(depth_gt, dtype=np.float32)
+            depth_gt = np.expand_dims(depth_gt, axis=2)
+            depth_gt = depth_gt / depth_norm
+            depth_gt_mask = np.logical_and(depth_gt > self.depth_min, depth_gt < self.depth_max)
+            sample = {
+                'image': image, 
+                'depth': depth_gt, 
+                'focal': focal, 
+                'image_path': raw_path, 
+                'depth_path': gt_path, 
+                'depth_mask': depth_gt_mask, 
+                'intrinsics': intrinsics,
+                "dataset": dataset, 
+            }
+
+        if self.transform:
+            sample = self.transform(sample)
+
+        return sample
+
+    def train_preprocess(self, image, depth_gt, intrinsics):
+        """
+        Applies flipping and gamma/brightness/color augmentation. Flipping currently disabled for consistent intrinsics
+
+        Returns:
+            image_aug, depth_gt_aug
+        """
+        # Random gamma, brightness, color augmentation
+        do_augment = random.random()
+        if do_augment > 0.5:
+            image = self.augment_image(image)
+
+        return image, depth_gt, intrinsics
+
+    def augment_image(self, image):
+        # gamma augmentation
+        gamma = random.uniform(0.9, 1.1)
+        image_aug = image ** gamma
+
+        # brightness augmentation
+        if self.args.dataset == 'nyu':
+            brightness = random.uniform(0.75, 1.25)
+        else:
+            brightness = random.uniform(0.9, 1.1)
+        image_aug = image_aug * brightness
+
+        # color augmentation
+        colors = np.random.uniform(0.9, 1.1, size=3)
+        white = np.ones((image.shape[0], image.shape[1]))
+        color_image = np.stack([white * colors[i] for i in range(3)], axis=2)
+        image_aug *= color_image
+        image_aug = np.clip(image_aug, 0, 1)
+
+        return image_aug
+
+    def __len__(self):
+        return len(self.raw_paths)
+
+
+def _collate_key(batches, key):
+    tensors = [batch[key] for batch in batches if key in batch]
+    if len(tensors) > 0:
+        return torch.stack(tensors)
+
+    return None
+
+
+def collate_both(batches):
+    ret = {}
+    for key in [
+        "image_kitti",
+        "depth_kitti",
+        "depth_mask_kitti",
+        "image_nyu",
+        "depth_nyu",
+        "depth_mask_nyu",
+    ]:
+        ret[key] = _collate_key(batches, key)
+    
+    for key in ["image_path", "depth_path"]:
+        if key in batches[0]:
+            ret[key] = [batch[key] for batch in batches]
+    
+    return ret
