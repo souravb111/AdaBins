@@ -2,8 +2,11 @@ import os
 from pathlib import Path
 import csv
 from copy import deepcopy
+import random
 
 mini = False
+n_val = 2500
+n_train = 10000
 raw_dir = Path("/mnt/remote/shared_data/datasets/kitti-depth/2011_09_26")
 
 ## Val
@@ -15,10 +18,7 @@ val_raw_paths = []
 for sub_dir in gt_dir.iterdir():
     if 'sync' in sub_dir.name:
         for gt_path in (sub_dir / 'proj_depth/groundtruth/image_02').iterdir():
-            date_sync_str = str(gt_path.parent.parent.parent.parent.stem)
-            date_str = date_sync_str[:10]
-            
-            raw_path = str(gt_path).replace(f'avg-kitti/{split}/{date_sync_str}', f'kitti-depth/{date_str}/{date_sync_str}').replace('proj_depth/groundtruth/image_02', 'image_02/data')
+            raw_path = str(gt_path).replace(f'avg-kitti/{split}', 'kitti-depth/2011_09_26').replace('proj_depth/groundtruth/image_02', 'image_02/data')
             
             if Path(raw_path).exists() and gt_path.exists():
                 print(f"{raw_path} -> {gt_path}")
@@ -40,9 +40,10 @@ if mini:
 else:
     out_path = f'kitti_{split}.csv'
     
+random.shuffle(raw_gt_pairs)
 with open(out_path,'w') as out:
     csv_out=csv.writer(out)
-    for row in raw_gt_pairs:
+    for row in raw_gt_pairs[:n_val]:
         csv_out.writerow(row)
         
 ## Train
@@ -54,10 +55,7 @@ train_raw_paths = []
 for sub_dir in gt_dir.iterdir():
     if 'sync' in sub_dir.name:
         for gt_path in (sub_dir / 'proj_depth/groundtruth/image_02').iterdir():
-            date_sync_str = str(gt_path.parent.parent.parent.parent.stem)
-            date_str = date_sync_str[:10]
-            
-            raw_path = str(gt_path).replace(f'avg-kitti/{split}/{date_sync_str}', f'kitti-depth/{date_str}/{date_sync_str}').replace('proj_depth/groundtruth/image_02', 'image_02/data')
+            raw_path = str(gt_path).replace(f'avg-kitti/{split}', 'kitti-depth/2011_09_26').replace('proj_depth/groundtruth/image_02', 'image_02/data')
             
             if Path(raw_path).exists() and gt_path.exists() and raw_path not in val_raw_paths:
                 print(f"{raw_path} -> {gt_path}")
@@ -76,9 +74,10 @@ if mini:
     out_path = f'kitti_mini_{split}.csv'
 else:
     out_path = f'kitti_{split}.csv'
-    
+
+random.shuffle(raw_gt_pairs)
 with open(out_path,'w') as out:
     csv_out=csv.writer(out)
-    for row in raw_gt_pairs:
+    for row in raw_gt_pairs[:n_train]:
         csv_out.writerow(row)
         
