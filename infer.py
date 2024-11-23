@@ -159,8 +159,8 @@ if __name__ == '__main__':
         
     import matplotlib.pyplot as plt
     from time import time
-    checkpoint = "/home/cfang/AdaBins/checkpoints/kitti_150_lr_aug.py"
-    # checkpoint = "/mnt/remote/shared_data/users/cfang/AdaBins/checkpoints/kitti_150_baseline.pt"
+    # checkpoint = "/home/cfang/AdaBins/checkpoints/kitti_150_lr_aug.py"
+    checkpoint = "/mnt/remote/shared_data/users/cfang/AdaBins/checkpoints/kitti_150_baseline.pt"
     dataset = "kitti"
     filenames_file_eval = "/home/cfang/AdaBins/kitti/kitti_val.csv"
     num_samples = 10
@@ -187,7 +187,7 @@ if __name__ == '__main__':
         # ax.set_title("Input")
         
         ax = fig.add_subplot(312)
-        ax.imshow(pred.squeeze(), cmap='magma_r')
+        ax.imshow(pred.squeeze(), cmap='inferno')
         ax.axis('off')
         # ax.set_title("Pred")
         
@@ -196,6 +196,6 @@ if __name__ == '__main__':
         ax.imshow(depth_gt, cmap='magma_r')
         ax.axis('off')
         
-        plt.savefig(f"viz_imgs/output_aug_{i}.jpg")
+        plt.savefig(f"viz_imgs/output_{i}.jpg")
         plt.close(fig)
     
