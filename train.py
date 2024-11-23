@@ -193,9 +193,10 @@ def train(model, args, epochs=10, experiment_name="DeepLab", lr=0.0001, root="."
                 depth_mask = batch[f'depth_mask_{dataset}']
                 # intrinsics = batch['intrinsics']
 
-                # Long range augmentation
-                if random.random() < -90.0:
-                    img, depth, intrinsics = augment_long_range_tensors(img, depth, intrinsics, alpha=1.333)
+                # if NYU, augment long range, can't use name since we hacked it in collate
+                if img.shape[-1] < 900:
+                    alpha =  torch.rand(1) * 0.333333333 + 1
+                    img, depth, intrinsics = augment_long_range_tensors(img, depth, intrinsics, alpha=alpha)
                     depth_mask = torch.logical_and(depth > args.min_depth, depth < args.max_depth)
                 
                 img = img.to(device)
