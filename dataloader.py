@@ -6,7 +6,9 @@ from pathlib import Path
 import yaml
 from typing import Tuple
 import math
+import io
 
+from fastnumpyio import load as load_np
 import cv2
 import numpy as np
 import torch
@@ -180,9 +182,10 @@ class DepthDataLoader(object):
 
             self.data = DataLoader(self.training_samples, args.batch_size,
                                    shuffle=(self.train_sampler is None),
-                                   num_workers=0,
+                                   num_workers=1,
                                    pin_memory=False,
-                                   sampler=self.train_sampler)
+                                   sampler=self.train_sampler,
+                                   persistent_workers=True)
 
         elif mode == 'eval':
             self.testing_samples = DataLoadPreprocess(args, mode, transform=preprocessing_transforms(mode))
@@ -193,9 +196,10 @@ class DepthDataLoader(object):
                 self.eval_sampler = None
             self.data = DataLoader(self.testing_samples, 1,
                                    shuffle=False,
-                                   num_workers=0,
+                                   num_workers=1,
                                    pin_memory=False,
-                                   sampler=self.eval_sampler)
+                                   sampler=self.eval_sampler,
+                                   persistent_workers=True)
 
         elif mode == 'test':
             self.testing_samples = DataLoadPreprocess(args, mode, transform=preprocessing_transforms(mode))
@@ -263,14 +267,18 @@ class DataLoadPreprocess(Dataset):
             #     intrinsics_str = yaml.safe_load(f)
             # intrinsics_str = intrinsics_str['K_02'] if 'image_02' in raw_path else intrinsics_str['K_03']
             # intrinsics = np.array([float(x) for x in intrinsics_str.split(' ')]).reshape((3, 3))
-            sam_feats_path = raw_path.replace("kitti-depth", "kitti-depth-sam-feats")
+            sam_feats_path = raw_path.replace("kitti-depth", "kitti-depth-sam-feats-np").replace(".png", ".npy")
+            # sam_feats_path = raw_path.replace("kitti-depth", "kitti-depth-sam-feats")
         intrinsics = np.eye(3)
         focal = 0.5 * (intrinsics[0, 0] + intrinsics[1, 1])
 
         image = Image.open(raw_path)
         depth_gt = Image.open(gt_path)
-        with open(sam_feats_path, "rb") as sam_feats_f:
-            sam_feats = torch.load(sam_feats_f, map_location='cpu')
+        # with open(sam_feats_path, "rb") as sam_feats_f:
+        #     sam_feats = torch.load(sam_feats_f, map_location='cpu')
+        with open(sam_feats_path, "rb") as f:
+            buf = io.BytesIO(f.read())
+            sam_feats = torch.from_numpy(load_np(buf))
 
         if self.args.dataset == 'kitti':
             self.image_height = 250
