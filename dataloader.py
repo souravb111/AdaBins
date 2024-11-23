@@ -7,6 +7,8 @@ import yaml
 from typing import Tuple
 import math
 import io
+import h5py
+import hdf5plugin
 
 from fastnumpyio import load as load_np
 import cv2
@@ -182,8 +184,8 @@ class DepthDataLoader(object):
 
             self.data = DataLoader(self.training_samples, args.batch_size,
                                    shuffle=(self.train_sampler is None),
-                                   num_workers=1,
-                                   pin_memory=False,
+                                   num_workers=args.num_threads,
+                                   pin_memory=True,
                                    sampler=self.train_sampler,
                                    persistent_workers=True)
 
@@ -196,14 +198,14 @@ class DepthDataLoader(object):
                 self.eval_sampler = None
             self.data = DataLoader(self.testing_samples, 1,
                                    shuffle=False,
-                                   num_workers=1,
-                                   pin_memory=False,
+                                   num_workers=args.num_threads,
+                                   pin_memory=True,
                                    sampler=self.eval_sampler,
                                    persistent_workers=True)
 
         elif mode == 'test':
             self.testing_samples = DataLoadPreprocess(args, mode, transform=preprocessing_transforms(mode))
-            self.data = DataLoader(self.testing_samples, 1, shuffle=False, num_workers=0, pin_memory=False)
+            self.data = DataLoader(self.testing_samples, 1, shuffle=False, num_workers=args.num_threads, pin_memory=False)
 
         else:
             print('mode should be one of \'train, test, eval\'. Got {}'.format(mode))
@@ -267,7 +269,9 @@ class DataLoadPreprocess(Dataset):
             #     intrinsics_str = yaml.safe_load(f)
             # intrinsics_str = intrinsics_str['K_02'] if 'image_02' in raw_path else intrinsics_str['K_03']
             # intrinsics = np.array([float(x) for x in intrinsics_str.split(' ')]).reshape((3, 3))
-            sam_feats_path = raw_path.replace("kitti-depth", "kitti-depth-sam-feats-np").replace(".png", ".npy")
+            sam_feats_path = raw_path.replace("kitti-depth", "kitti-depth-sam-feats-np").replace(".png", ".h5")
+            if not os.path.exists(sam_feats_path):
+                sam_feats_path = raw_path.replace("kitti-depth", "kitti-depth-sam-feats-np").replace(".png", ".npy")
             # sam_feats_path = raw_path.replace("kitti-depth", "kitti-depth-sam-feats")
         intrinsics = np.eye(3)
         focal = 0.5 * (intrinsics[0, 0] + intrinsics[1, 1])
@@ -276,9 +280,14 @@ class DataLoadPreprocess(Dataset):
         depth_gt = Image.open(gt_path)
         # with open(sam_feats_path, "rb") as sam_feats_f:
         #     sam_feats = torch.load(sam_feats_f, map_location='cpu')
-        with open(sam_feats_path, "rb") as f:
-            buf = io.BytesIO(f.read())
-            sam_feats = torch.from_numpy(load_np(buf))
+        if sam_feats_path.endswith(".npy"):
+            with open(sam_feats_path, "rb") as f:
+                buf = io.BytesIO(f.read())
+                sam_feats = torch.from_numpy(load_np(buf))
+        else:
+            h5f = h5py.File(sam_feats_path,'r')
+            sam_feats = torch.from_numpy(h5f['data'][:])
+            h5f.close()
 
         if self.args.dataset == 'kitti':
             self.image_height = 250
@@ -294,7 +303,7 @@ class DataLoadPreprocess(Dataset):
             image = image.crop((43, 45, 608, 472))
             self.image_height = 416
             self.image_width = 544
-        sam_feats = sam_feats[0, ...].permute(1, 2, 0).numpy()
+        sam_feats = sam_feats[0, ...].permute(1, 2, 0).float().numpy()
                 
         if self.mode == 'train':
             # if self.args.do_random_rotate is True:
