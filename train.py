@@ -27,6 +27,13 @@ torch.manual_seed(1)
 torch.cuda.manual_seed(1)
 np.random.seed(1)
 
+import random
+torch.backends.cudnn.deterministic = True
+random.seed(1)
+torch.manual_seed(1)
+torch.cuda.manual_seed(1)
+np.random.seed(1)
+
 # os.environ['WANDB_MODE'] = 'dryrun'
 PROJECT = "adabins"
 logging = True
@@ -225,30 +232,29 @@ def train(model, args, epochs=10, experiment_name="DeepLab", lr=0.0001, root="."
             step += 1
             scheduler.step()
 
-            ########################################################################################################
-            if should_write and step % args.validate_every == 0:
+        ########################################################################################################
+        if should_write:
+            ################################# Validation loop ##################################################
+            model.eval()
+            metrics, val_si = validate(args, model, test_loader, criterion_ueff, epoch, epochs, device)
 
-                ################################# Validation loop ##################################################
-                model.eval()
-                metrics, val_si = validate(args, model, test_loader, criterion_ueff, epoch, epochs, device)
+            print("Validated: {}".format(metrics))
+            if should_log: 
+                wandb.log({
+                    f"Test/{criterion_ueff.name}": val_si.get_value(),
+                    # f"Test/{criterion_bins.name}": val_bins.get_value()
+                }, step=step)
 
-                print("Validated: {}".format(metrics))
-                if should_log: 
-                    wandb.log({
-                        f"Test/{criterion_ueff.name}": val_si.get_value(),
-                        # f"Test/{criterion_bins.name}": val_bins.get_value()
-                    }, step=step)
+                wandb.log({f"Metrics/{k}": v for k, v in metrics.items()}, step=step)
+                model_io.save_checkpoint(model, optimizer, epoch, f"{experiment_name}_{run_id}_latest.pt",
+                                            root=os.path.join(root, "checkpoints"))
 
-                    wandb.log({f"Metrics/{k}": v for k, v in metrics.items()}, step=step)
-                    model_io.save_checkpoint(model, optimizer, epoch, f"{experiment_name}_{run_id}_latest.pt",
-                                             root=os.path.join(root, "checkpoints"))
-
-                if metrics['abs_rel'] < best_loss and should_write:
-                    model_io.save_checkpoint(model, optimizer, epoch, f"{experiment_name}_{run_id}_best.pt",
-                                             root=os.path.join(root, "checkpoints"))
-                    best_loss = metrics['abs_rel']
-                model.train()
-                #################################################################################################
+            if metrics['abs_rel'] < best_loss and should_write:
+                model_io.save_checkpoint(model, optimizer, epoch, f"{experiment_name}_{run_id}_best.pt",
+                                            root=os.path.join(root, "checkpoints"))
+                best_loss = metrics['abs_rel']
+            model.train()
+            #################################################################################################
 
     return model
 
@@ -321,7 +327,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Training script. Default values of all arguments are recommended for reproducibility', fromfile_prefix_chars='@',
                                      conflict_handler='resolve')
     parser.convert_arg_line_to_args = convert_arg_line_to_args
-    parser.add_argument('--epochs', default=4, type=int, help='number of total epochs to run')
+    parser.add_argument('--epochs', default=6, type=int, help='number of total epochs to run')
     parser.add_argument('--n-bins', '--n_bins', default=256, type=int,
                         help='number of bins/buckets to divide depth range into')
     parser.add_argument('--lr', '--learning-rate', default=1e-4, type=float, help='max learning rate')

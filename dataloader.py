@@ -356,8 +356,7 @@ class DataLoadPreprocess(Dataset):
         #     intrinsics *= 0.5
         #     intrinsics[2, 2] = 1
         # do_resize = random.random()
-        # if rank == 1 and do_resize > 0.5:
-        #     print(f"Augmented")
+        # if rank == 1 and do_resize() > 0.5:
         #     image, depth_gt, intrinsics = augment_long_range(image, depth_gt, intrinsics, alpha=1.5)
             
         # do_resize = random.random()

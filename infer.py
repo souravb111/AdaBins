@@ -162,7 +162,7 @@ if __name__ == '__main__':
     # checkpoint = "/home/cfang/AdaBins/checkpoints/kitti_150_lr_aug.py"
     checkpoint = "/mnt/remote/shared_data/users/cfang/AdaBins/checkpoints/kitti_150_baseline.pt"
     dataset = "kitti"
-    filenames_file_eval = "/home/cfang/AdaBins/kitti/kitti_val.csv"
+    filenames_file_eval = "/home/james/AdaBins/kitti/kitti_val.csv"
     num_samples = 10
     
     inferHelper = InferenceHelper(checkpoint=checkpoint, dataset=dataset)
