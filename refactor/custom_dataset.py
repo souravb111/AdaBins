@@ -18,7 +18,6 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 import torch.nn.functional as F
 
-torch.backends.cudnn.deterministic = True
 random.seed(1)
 torch.manual_seed(1)
 torch.cuda.manual_seed(1)
@@ -253,59 +252,41 @@ class CustomDataset(Dataset):
             intrinsics = self.intrinsics.copy()
             # TODO: sam_feats_path = ...
         else:
-            intrinsics_path = Path(raw_path).parent.parent.parent.parent / 'calib_cam_to_cam.txt'
-            with open(intrinsics_path, "r") as f:
-                intrinsics_str = yaml.safe_load(f)
-            intrinsics_str = intrinsics_str['K_02'] if 'image_02' in raw_path else intrinsics_str['K_03']
-            intrinsics = np.array([float(x) for x in intrinsics_str.split(' ')]).reshape((3, 3))
-            sam_feats_path = raw_path.replace("kitti-depth", "kitti-depth-sam-feats-np").replace(".png", ".npy")
-        focal = 0.5 * (intrinsics[0, 0] + intrinsics[1, 1])
+            # intrinsics_path = Path(raw_path).parent.parent.parent.parent / 'calib_cam_to_cam.txt'
+            # with open(intrinsics_path, "r") as f:
+            #     intrinsics_str = yaml.safe_load(f)
+            # intrinsics_str = intrinsics_str['K_02'] if 'image_02' in raw_path else intrinsics_str['K_03']
+            # intrinsics = np.array([float(x) for x in intrinsics_str.split(' ')]).reshape((3, 3))
+            intrinsics = np.eye(3)
+            # sam_feats_path = raw_path.replace("kitti-depth", "kitti-depth-sam-feats-np").replace(".png", ".npy")
+            sam_feats_path = "/mnt/remote/shared_data/datasets/kitti-depth-sam-feats-np/2011_10_03/2011_10_03_drive_0047_sync/image_03/data/0000000831_fp16.npy"
+        focal = 0.0
 
-        image = Image.open(raw_path)
-        depth_gt = Image.open(gt_path)
+        image = transforms.functional.pil_to_tensor(Image.open(raw_path)).float() / 255.0
+        depth_gt = transforms.functional.pil_to_tensor(Image.open(gt_path)).float() / self.depth_normalizer
         with open(sam_feats_path, "rb") as f:
             buf = io.BytesIO(f.read())
-            sam_feats = torch.from_numpy(load_np(buf))
+            sam_feats = torch.from_numpy(load_np(buf))[0, ...]
+        sam_feats = torch.zeros_like(image)
 
         # Crop
         if self.dataset_name == 'kitti':
-            self.image_height = 250
-            self.image_width = 1200
-            height, width = image.height, image.width
+            self.image_height = 256
+            self.image_width = 1216
+            height, width = image.shape[1:]
             top_margin = int(height - self.image_height)
             left_margin = int((width - self.image_width) / 2)
-            image = image.crop((left_margin, top_margin, left_margin + self.image_width, top_margin + self.image_height))
-            depth_gt = depth_gt.crop((left_margin, top_margin, left_margin + self.image_width, top_margin + self.image_height))
-            sam_feats = sam_feats[..., top_margin:top_margin+self.image_height, left_margin:left_margin+self.image_width]
+            
+            image = image[:, top_margin:top_margin+self.image_height, left_margin:left_margin+self.image_width]
+            depth_gt = depth_gt[:, top_margin:top_margin+self.image_height, left_margin:left_margin+self.image_width]
+            sam_feats = sam_feats[:, top_margin:top_margin+self.image_height, left_margin:left_margin+self.image_width]
         else:
             depth_gt = depth_gt.crop((43, 45, 608, 472))
             image = image.crop((43, 45, 608, 472))
             self.image_height = 416
             self.image_width = 544
-        sam_feats = sam_feats[0, ...].permute(1, 2, 0).numpy()
                 
-        if self.mode == 'train':
-            image = np.asarray(image, dtype=np.float32) / 255.0
-            depth_gt = np.asarray(depth_gt, dtype=np.float32)
-            depth_gt = np.expand_dims(depth_gt, axis=2)
-            depth_gt = depth_gt / self.depth_normalizer
-
-            image = np.concatenate([image, sam_feats], axis=2)
-            image, depth_gt, intrinsics = self.train_preprocess(image, depth_gt, intrinsics)
-            sam_feats = image[..., 3:]
-            image = image[..., :3]
-            depth_gt_mask = np.logical_and(depth_gt > self.depth_min, depth_gt < self.depth_max)
-            
-            sample = {'image': image, 'depth': depth_gt, 'focal': focal, 'depth_mask': depth_gt_mask, 'intrinsics': intrinsics, 'sam_feats': sam_feats}
-        else:
-            image = np.asarray(image, dtype=np.float32) / 255.0
-            image = np.concatenate([image, sam_feats], axis=2)
-            depth_gt = np.asarray(depth_gt, dtype=np.float32)
-            depth_gt = np.expand_dims(depth_gt, axis=2)
-            depth_gt = depth_gt / self.depth_normalizer
-            depth_gt_mask = np.logical_and(depth_gt > self.depth_min, depth_gt < self.depth_max)
-            
-            sample = {'image': image, 'depth': depth_gt, 'focal': focal, 'image_path': raw_path, 'depth_path': gt_path, 'depth_mask': depth_gt_mask, 'intrinsics': intrinsics, 'sam_feats': sam_feats}
+        sample = {'image': image, 'depth': depth_gt, 'focal': focal, 'image_path': raw_path, 'depth_path': gt_path, 'intrinsics': intrinsics, 'sam_feats': sam_feats}
 
         if self.transform:
             sample = self.transform(sample)
@@ -398,33 +379,25 @@ class CustomDataset(Dataset):
 class ToTensor(object):
     def __init__(self, mode):
         self.mode = mode
-        self.normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        self.normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225], inplace=True)
 
     def __call__(self, sample):
         image, focal = sample['image'], sample['focal']
-        image = self.to_tensor(image)
         image[:3, ...] = self.normalize(image[:3, ...])
-        image = pad_images(image, multiple_of=32)[0]
 
         if self.mode == 'test':
             return {'image': image, 'focal': focal}
 
-        depth, depth_mask = sample['depth'], sample['depth_mask']
+        depth = sample['depth']
         intrinsics = torch.tensor(sample['intrinsics'])
-        depth = self.to_tensor(depth)
-        depth_mask = self.to_tensor(depth_mask)
-        depth = pad_images(depth, multiple_of=32)[0]
-        depth_mask = pad_images(depth_mask, multiple_of=32)[0]
-        
+
         sam_feats = sample['sam_feats']
-        sam_feats = self.to_tensor(sam_feats)
-        sam_feats = pad_images(sam_feats, multiple_of=32)[0]
-        if self.mode == 'train':
-            return {'image': image, 'depth': depth, 'focal': focal, 'depth_mask': depth_mask, 'intrinsics': intrinsics, 'sam_feats': sam_feats}
-        else:
-            return {'image': image, 'depth': depth, 'focal': focal, 'image_path': sample['image_path'], 'depth_path': sample['depth_path'], 'depth_mask': depth_mask, 'intrinsics': intrinsics, 'sam_feats': sam_feats}
+        return {'image': image, 'depth': depth, 'focal': focal, 'image_path': sample['image_path'], 'depth_path': sample['depth_path'], 'intrinsics': intrinsics, 'sam_feats': sam_feats}
 
     def to_tensor(self, pic):
+        if isinstance(pic, torch.Tensor):
+            return pic
+        
         if not (_is_pil_image(pic) or _is_numpy_image(pic)):
             raise TypeError(
                 'pic should be PIL Image or ndarray. Got {}'.format(type(pic)))

@@ -441,6 +441,9 @@ class ToTensor(object):
             return {'image': image, 'depth': depth, 'focal': focal, 'image_path': sample['image_path'], 'depth_path': sample['depth_path'], 'depth_mask': depth_mask, 'intrinsics': intrinsics, 'sam_feats': sam_feats}
 
     def to_tensor(self, pic):
+        if isinstance(pic, torch.Tensor):
+            return pic
+        
         if not (_is_pil_image(pic) or _is_numpy_image(pic)):
             raise TypeError(
                 'pic should be PIL Image or ndarray. Got {}'.format(type(pic)))

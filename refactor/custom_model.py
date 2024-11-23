@@ -9,7 +9,7 @@ class LitModel(L.LightningModule):
         self.net = UnetAdaptiveBins.build(n_bins=n_bins, min_val=min_val, max_val=max_val, norm=norm)
         self.criterion_ueff = SILogLoss()
         self.criterion_bins = BinsChamferLoss()
-        self.chamfer_weight = 0.1
+        self.chamfer_weight = 0.0
     
     # Uncomment to find unused params        
     # def on_before_optimizer_step(self, optimizer) -> None:
@@ -18,12 +18,12 @@ class LitModel(L.LightningModule):
     #             print(f"Unused: {name}")
     
     def training_step(self, batch, batch_idx):
-        
         img = batch['image']
         depth = batch['depth']
-        depth_mask = batch['depth_mask']
+        # depth_mask = batch['depth_mask']
         intrinsics = batch['intrinsics']
         sam_feats = batch['sam_feats']
+        depth_mask = torch.logical_and(depth > self.net.min_val, depth < self.net.max_val)
     
         # # Long range augmentation
         # if random.random() < 0.2:
@@ -42,7 +42,7 @@ class LitModel(L.LightningModule):
         if self.chamfer_weight > 0:
             l_chamfer = self.criterion_bins(bin_edges, depth)
         else:
-            l_chamfer = self.torch.Tensor([0]).to(img.device)
+            l_chamfer = torch.Tensor([0]).to(img.device)
 
         loss = l_dense + self.chamfer_weight * l_chamfer
         self.log("train_loss", loss)
