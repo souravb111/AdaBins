@@ -75,6 +75,7 @@ class Encoder(nn.Module):
     def __init__(self, backend):
         super(Encoder, self).__init__()
         self.original_model = backend
+        del self.original_model.bn2
 
     def forward(self, x):
         features = [x[:, :3, ...]]
