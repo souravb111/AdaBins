@@ -298,11 +298,14 @@ def validate(args, model, test_loader, criterion_ueff, epoch, epochs, device='cp
         metrics = utils.RunningAverageDict()
         for batch in tqdm(test_loader, desc=f"Epoch: {epoch + 1}/{epochs}. Loop: Validation") if is_rank_zero(
                 args) else test_loader:
-            img = batch['image'].to(device)
-            depth = batch['depth'].to(device) 
+            dataset = "kitti" if "image_kitti" in batch else "nyu"
+            img = batch[f'image_{dataset}'].to(device)
+            depth = batch[f'depth_{dataset}'].to(device) 
             depth = depth.squeeze().unsqueeze(0).unsqueeze(0)
-            depth_mask = batch['depth_mask'].to(device).squeeze(-1)
-            intrinsics = batch['intrinsics'].to(device)
+            depth_mask = batch[f'depth_mask_{dataset}'].to(device).squeeze(-1)
+            assert img.shape[0] == 1
+
+            intrinsics = None #batch['intrinsics'].to(device)
             bins, pred = model(img, intrinsics)
 
             l_dense = criterion_ueff(pred, depth, mask=depth_mask.to(torch.bool), interpolate=True)
