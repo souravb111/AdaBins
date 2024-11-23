@@ -258,8 +258,8 @@ class CustomDataset(Dataset):
             # intrinsics_str = intrinsics_str['K_02'] if 'image_02' in raw_path else intrinsics_str['K_03']
             # intrinsics = np.array([float(x) for x in intrinsics_str.split(' ')]).reshape((3, 3))
             intrinsics = np.eye(3)
-            # sam_feats_path = raw_path.replace("kitti-depth", "kitti-depth-sam-feats-np").replace(".png", ".npy")
-            sam_feats_path = "/mnt/remote/shared_data/datasets/kitti-depth-sam-feats-np/2011_10_03/2011_10_03_drive_0047_sync/image_03/data/0000000831_fp16.npy"
+            sam_feats_path = raw_path.replace("kitti-depth", "kitti-depth-sam-feats-np").replace(".png", "_fp16.npy")
+            # sam_feats_path = "/mnt/remote/shared_data/datasets/kitti-depth-sam-feats-np/2011_10_03/2011_10_03_drive_0047_sync/image_03/data/0000000831_fp16.npy"
         focal = 0.0
 
         image = transforms.functional.pil_to_tensor(Image.open(raw_path)).float() / 255.0
@@ -267,7 +267,7 @@ class CustomDataset(Dataset):
         with open(sam_feats_path, "rb") as f:
             buf = io.BytesIO(f.read())
             sam_feats = torch.from_numpy(load_np(buf))[0, ...]
-        sam_feats = torch.zeros_like(image)
+        # sam_feats = torch.zeros_like(image)
 
         # Crop
         if self.dataset_name == 'kitti':

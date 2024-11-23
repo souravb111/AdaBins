@@ -182,10 +182,10 @@ class DepthDataLoader(object):
 
             self.data = DataLoader(self.training_samples, args.batch_size,
                                    shuffle=(self.train_sampler is None),
-                                   num_workers=1,
-                                   pin_memory=False,
+                                   num_workers=0,
+                                   pin_memory=True,
                                    sampler=self.train_sampler,
-                                   persistent_workers=True)
+                                   persistent_workers=False)
 
         elif mode == 'eval':
             self.testing_samples = DataLoadPreprocess(args, mode, transform=preprocessing_transforms(mode))
@@ -196,10 +196,10 @@ class DepthDataLoader(object):
                 self.eval_sampler = None
             self.data = DataLoader(self.testing_samples, 1,
                                    shuffle=False,
-                                   num_workers=1,
-                                   pin_memory=False,
+                                   num_workers=0,
+                                   pin_memory=True,
                                    sampler=self.eval_sampler,
-                                   persistent_workers=True)
+                                   persistent_workers=False)
 
         elif mode == 'test':
             self.testing_samples = DataLoadPreprocess(args, mode, transform=preprocessing_transforms(mode))
@@ -262,23 +262,19 @@ class DataLoadPreprocess(Dataset):
             intrinsics = self.intrinsics.copy()
             # TODO: sam_feats_path = ...
         else:
-            # intrinsics_path = Path(raw_path).parent.parent.parent.parent / 'calib_cam_to_cam.txt'
-            # with open(intrinsics_path, "r") as f:
-            #     intrinsics_str = yaml.safe_load(f)
-            # intrinsics_str = intrinsics_str['K_02'] if 'image_02' in raw_path else intrinsics_str['K_03']
-            # intrinsics = np.array([float(x) for x in intrinsics_str.split(' ')]).reshape((3, 3))
-            sam_feats_path = raw_path.replace("kitti-depth", "kitti-depth-sam-feats-np").replace(".png", ".npy")
-            # sam_feats_path = raw_path.replace("kitti-depth", "kitti-depth-sam-feats")
-        intrinsics = np.eye(3)
+            intrinsics_path = Path(raw_path).parent.parent.parent.parent / 'calib_cam_to_cam.txt'
+            with open(intrinsics_path, "r") as f:
+                intrinsics_str = yaml.safe_load(f)
+            intrinsics_str = intrinsics_str['K_02'] if 'image_02' in raw_path else intrinsics_str['K_03']
+            intrinsics = np.array([float(x) for x in intrinsics_str.split(' ')]).reshape((3, 3))
+            sam_feats_path = raw_path.replace("kitti-depth", "kitti-depth-sam-feats-np").replace(".png", "_fp16.npy")
         focal = 0.5 * (intrinsics[0, 0] + intrinsics[1, 1])
 
         image = Image.open(raw_path)
         depth_gt = Image.open(gt_path)
-        # with open(sam_feats_path, "rb") as sam_feats_f:
-        #     sam_feats = torch.load(sam_feats_f, map_location='cpu')
         with open(sam_feats_path, "rb") as f:
             buf = io.BytesIO(f.read())
-            sam_feats = torch.from_numpy(load_np(buf))
+            sam_feats = torch.from_numpy(load_np(buf)).float()
 
         if self.args.dataset == 'kitti':
             self.image_height = 250
@@ -297,17 +293,10 @@ class DataLoadPreprocess(Dataset):
         sam_feats = sam_feats[0, ...].permute(1, 2, 0).numpy()
                 
         if self.mode == 'train':
-            # if self.args.do_random_rotate is True:
-            #     random_angle = (random.random() - 0.5) * 2 * self.args.degree
-            #     image = self.rotate_image(image, random_angle)
-            #     depth_gt = self.rotate_image(depth_gt, random_angle, flag=Image.NEAREST)
-
-            # image, depth_gt = self.random_crop(image, depth_gt, self.image_height, self.args.image_width)
             image = np.asarray(image, dtype=np.float32) / 255.0
             depth_gt = np.asarray(depth_gt, dtype=np.float32)
             depth_gt = np.expand_dims(depth_gt, axis=2)
             depth_gt = depth_gt / self.depth_normalizer
-            # sam_feats = np.zeros_like(image)
             image = np.concatenate([image, sam_feats], axis=2)
             image, depth_gt, intrinsics = self.train_preprocess(image, depth_gt, intrinsics)
             sam_feats = image[..., 3:]
@@ -350,39 +339,10 @@ class DataLoadPreprocess(Dataset):
         Returns:
             image_aug, depth_gt_aug
         """
-        # # Random flipping
-        # do_flip = random.random()
-        # if do_flip > 0.5:
-        #     image = (image[:, ::-1, :]).copy()
-        #     depth_gt = (depth_gt[:, ::-1, :]).copy()
-
         # Random gamma, brightness, color augmentation
         do_augment = random.random()
         if do_augment > 0.5:
             image[..., :3] = self.augment_image(image[..., :3])
-
-        # rank = torch.distributed.get_rank() if torch.distributed.is_initialized() else 0
-        # if rank == 1:
-        #     new_h, new_w = image.shape[0]*3//4, image.shape[1]*3//4
-        #     image = cv2.resize(image, dsize=(new_w, new_h), interpolation=cv2.INTER_LINEAR)
-        #     depth = cv2.resize(depth_gt, dsize=(new_w, new_h), interpolation=cv2.INTER_NEAREST)
-        #     intrinsics *= 0.5
-        #     intrinsics[2, 2] = 1
-        # do_resize = random.random()
-        # if rank == 1 and do_resize > 0.5:
-        #     print(f"Augmented")
-        #     image, depth_gt, intrinsics = augment_long_range(image, depth_gt, intrinsics, alpha=1.5)
-            
-        # do_resize = random.random()
-        # if do_resize > 0.5:
-        #     if do_resize > 0.75:
-        #         new_h, new_w = image.shape[0]*2//3, image.shape[1]*2//3
-        #     else:
-        #         new_h, new_w = image.shape[0]*3//4, image.shape[1]*3//4
-        #     image = cv2.resize(image, dsize=(new_w, new_h), interpolation=cv2.INTER_LINEAR)
-        #     depth = cv2.resize(depth_gt, dsize=(new_w, new_h), interpolation=cv2.INTER_NEAREST)
-        #     intrinsics *= 0.5
-        #     intrinsics[2, 2] = 1
             
         return image, depth_gt, intrinsics
 
