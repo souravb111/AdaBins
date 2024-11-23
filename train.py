@@ -15,6 +15,7 @@ import torch.utils.data.distributed
 import wandb
 from tqdm import tqdm
 
+import matplotlib
 import model_io
 import models
 import utils
@@ -39,7 +40,9 @@ def is_rank_zero(args):
     return args.rank == 0
 
 
-import matplotlib
+NYU_INTR = torch.tensor([[5.1885790117450188e+02, 0, 3.2558244941119034e+02],
+                    [0, 5.1946961112127485e+02, 2.5373616633400465e+02],
+                    [0, 0, 1]])
 
 
 def colorize(value, vmin=10, vmax=1000, cmap='plasma'):
@@ -195,8 +198,10 @@ def train(model, args, epochs=10, experiment_name="DeepLab", lr=0.0001, root="."
 
                 # if NYU, augment long range, can't use name since we hacked it in collate
                 if img.shape[-1] < 900:
-                    alpha =  torch.rand(1) * 0.333333333 + 1
-                    img, depth, intrinsics = augment_long_range_tensors(img, depth, intrinsics, alpha=alpha)
+                    alpha =  torch.rand(1).item() * 0.333333333 + 1
+                    # dummy, use real intrinsics if needed
+                    intr = NYU_INTR[None, ...].expand(img.shape[0], -1, -1)
+                    img, depth, intrinsics = augment_long_range_tensors(img, depth, intr, alpha=alpha)
                     depth_mask = torch.logical_and(depth > args.min_depth, depth < args.max_depth)
                 
                 img = img.to(device)
