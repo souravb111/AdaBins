@@ -529,8 +529,15 @@ class BothDatasets(Dataset):
         gc.collect()
         return sam_feats_np
 
-
     def __getitem__(self, idx):
+        try:
+            return self._getitem__(idx)
+        except PIL.UnidentifiedImageError:
+            print(f"Encountered Pillow loading error on {idx} with raw path {self.raw_paths[idx]} and gt path {self.gt_paths[idx]}")
+            rand_idx = torch.randint(0, len(self), (1,)).item()
+            return self.__getitem__(rand_idx)
+
+    def _getitem__(self, idx):
         raw_path = self.raw_paths[idx]
         gt_path = self.gt_paths[idx]
         dataset = self.path_to_dataset[raw_path]
@@ -653,6 +660,22 @@ def collate_both(batches):
     ]:
         ret[key] = _collate_key(batches, key)
     
+    if ret["image_kitti"] is None:
+        ret["image_kitti"] = ret['image_nyu'][:1]
+        ret["depth_kitti"] = ret['depth_nyu'][:1]
+        ret["depth_mask_kitti"] = ret['depth_mask_nyu'][:1]
+        ret["image_nyu"] = ret['image_nyu'][1:]
+        ret["depth_nyu"] = ret['depth_nyu'][1:]
+        ret["depth_mask_nyu"] = ret['depth_mask_nyu'][1:]
+    
+    elif ret["image_nyu"] is None:
+        ret["image_nyu"] = ret['image_kitti'][:1]
+        ret["depth_nyu"] = ret['depth_kitti'][:1]
+        ret["depth_mask_nyu"] = ret['depth_mask_kitti'][:1]
+        ret["image_kitti"] = ret['image_kitti'][1:]
+        ret["depth_kitti"] = ret['depth_kitti'][1:]
+        ret["depth_mask_kitti"] = ret['depth_mask_kitti'][1:]
+
     for key in ["image_path", "depth_path"]:
         if key in batches[0]:
             ret[key] = [batch[key] for batch in batches]
