@@ -660,7 +660,7 @@ def collate_both(batches):
     ]:
         ret[key] = _collate_key(batches, key)
     
-    if ret["image_kitti"] is None:
+    if ret["image_kitti"] is None and ret["image_nyu"].shape[0] > 1:
         ret["image_kitti"] = ret['image_nyu'][:1]
         ret["depth_kitti"] = ret['depth_nyu'][:1]
         ret["depth_mask_kitti"] = ret['depth_mask_nyu'][:1]
@@ -668,7 +668,7 @@ def collate_both(batches):
         ret["depth_nyu"] = ret['depth_nyu'][1:]
         ret["depth_mask_nyu"] = ret['depth_mask_nyu'][1:]
     
-    elif ret["image_nyu"] is None:
+    elif ret["image_nyu"] is None and ret["image_kitti"].shape[0] > 1:
         ret["image_nyu"] = ret['image_kitti'][:1]
         ret["depth_nyu"] = ret['depth_kitti'][:1]
         ret["depth_mask_nyu"] = ret['depth_mask_kitti'][:1]

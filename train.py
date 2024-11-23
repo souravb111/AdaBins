@@ -298,7 +298,7 @@ def validate(args, model, test_loader, criterion_ueff, epoch, epochs, device='cp
         metrics = utils.RunningAverageDict()
         for batch in tqdm(test_loader, desc=f"Epoch: {epoch + 1}/{epochs}. Loop: Validation") if is_rank_zero(
                 args) else test_loader:
-            dataset = "kitti" if "image_kitti" in batch else "nyu"
+            dataset = "kitti" if batch["image_kitti"] is not None else "nyu"
             img = batch[f'image_{dataset}'].to(device)
             depth = batch[f'depth_{dataset}'].to(device) 
             depth = depth.squeeze().unsqueeze(0).unsqueeze(0)
