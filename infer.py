@@ -159,10 +159,11 @@ if __name__ == '__main__':
         
     import matplotlib.pyplot as plt
     from time import time
-    checkpoint = "/home/cfang/AdaBins/checkpoints/kitti_150_lr_aug.py"
+    checkpoint = "/home/james/AdaBins/checkpoints/UnetAdaptiveBins_22-Nov_21-48-nodebs4-tep4-lr0.0001-wd0.1-759005e8-92d4-4f45-a8d9-18b1a3d85264_latest.pt"
+    # checkpoint = "/home/cfang/AdaBins/checkpoints/kitti_150_lr_aug.py"
     # checkpoint = "/mnt/remote/shared_data/users/cfang/AdaBins/checkpoints/kitti_150_baseline.pt"
     dataset = "kitti"
-    filenames_file_eval = "/home/cfang/AdaBins/kitti/kitti_val.csv"
+    filenames_file_eval = "/home/james/AdaBins/kitti/kitti_val.csv"
     num_samples = 10
     
     inferHelper = InferenceHelper(checkpoint=checkpoint, dataset=dataset)
@@ -187,7 +188,7 @@ if __name__ == '__main__':
         # ax.set_title("Input")
         
         ax = fig.add_subplot(312)
-        ax.imshow(pred.squeeze(), cmap='magma_r')
+        ax.imshow(pred.squeeze(), cmap='inferno')
         ax.axis('off')
         # ax.set_title("Pred")
         
