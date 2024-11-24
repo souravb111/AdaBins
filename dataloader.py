@@ -1,5 +1,8 @@
 # This file is mostly taken from BTS; author: Jin Han Lee, with only slight modifications
-
+import hdf5plugin
+import h5py
+import os
+import io
 import PIL
 import random
 import gc
@@ -16,6 +19,8 @@ from PIL import Image
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 import torch.nn.functional as F
+from fast_np import load as load_np
+from models.unet_adaptive_bins import USE_SAM
 
 KITTI_DEPTH_MIN = 1e-3
 KITTI_DEPTH_MAX = 256
@@ -363,7 +368,7 @@ class DataLoadPreprocess(Dataset):
         # Random gamma, brightness, color augmentation
         do_augment = random.random()
         if do_augment > 0.5:
-            image = self.augment_image(image)
+            image[...,:3] = self.augment_image(image[...,:3])
 
         # rank = torch.distributed.get_rank() if torch.distributed.is_initialized() else 0
         # if rank == 1:
@@ -512,22 +517,28 @@ class BothDatasets(Dataset):
         self.depth_max = 100
         # TODO intrinsics if needed
 
-    #def __getitem__(self, idx):
-    #    try:
-    #        return self._getitem__(idx)
-    #    except PIL.UnidentifiedImageError:
-    #        print(f"Encountered Pillow loading error on {idx} with raw path {self.raw_paths[idx]} and gt path {self.gt_paths[idx]}")
-    #        rand_idx = torch.randint(0, len(self), (1,)).item()
-    #        return self.__getitem__(rand_idx)
-
-    def _load_sam_feats(self, raw_path: str) -> torch.Tensor:
-        sam_f_path = raw_path.replace("nyu_depth_v2_sync", "nyu_sam_feats")
-        sam_feats = torch.load(sam_f_path)
-        sam_feats_np = sam_feats.numpy()[0]
-        # https://github.com/pytorch/pytorch/issues/102334
-        del sam_feats
-        gc.collect()
-        return sam_feats_np
+    def _load_nyu_sam_feats(self, raw_path: str) -> torch.Tensor:
+        sam_f_path = raw_path.replace("nyu_depth_v2_sync", "nyu_sam_feats_downsample").replace(".png", ".npy")
+        sam_feats = np.load(sam_f_path)
+        # ...
+        sam_feats = torch.nn.functional.interpolate(torch.from_numpy(sam_feats), scale_factor=4).permute(0,2,3,1).numpy()
+        return sam_feats[0]
+    
+    def _load_kitti_sam_feats(self, raw_path: str) -> torch.Tensor:
+        sam_feats_path = raw_path.replace("kitti-depth", "kitti-depth-sam-feats-np").replace(".png", ".h5")
+        if not os.path.exists(sam_feats_path):
+            sam_feats_path = raw_path.replace("kitti-depth", "kitti-depth-sam-feats-np").replace(".png", ".npy")
+        
+        if sam_feats_path.endswith(".npy"):
+            with open(sam_feats_path, "rb") as f:
+                buf = io.BytesIO(f.read())
+                sam_feats = torch.from_numpy(load_np(buf))
+        else:
+            h5f = h5py.File(sam_feats_path,'r')
+            sam_feats = h5f['data'][:]
+            h5f.close()
+        
+        return np.transpose(sam_feats[0], (1, 2 , 0)).astype(np.float32)
 
     def __getitem__(self, idx):
         try:
@@ -558,14 +569,23 @@ class BothDatasets(Dataset):
             depth_gt = depth_gt.crop((left_margin, top_margin, left_margin + 1216, top_margin + 352))
             self.image_height = 352
             self.image_width = 1216
+            if USE_SAM:
+                sam_feats = self._load_kitti_sam_feats(raw_path)[
+                    top_margin:top_margin+self.image_height, left_margin:left_margin+self.image_width
+                ]
         else:
             depth_gt = depth_gt.crop((43, 45, 608, 472))
             image = image.crop((43, 45, 608, 472))
             self.image_height = 416
             self.image_width = 544
-                
+            if USE_SAM:
+                sam_feats = self._load_nyu_sam_feats(raw_path)[45:472, 43:608]
+
+
         if self.mode == 'train':
             image = np.asarray(image, dtype=np.float32) / 255.0
+            if USE_SAM:
+                image = np.concatenate((image, sam_feats), axis=-1)
             depth_gt = np.asarray(depth_gt, dtype=np.float32)
             depth_gt = np.expand_dims(depth_gt, axis=2)
             depth_gt = depth_gt / depth_norm
@@ -611,7 +631,7 @@ class BothDatasets(Dataset):
         # Random gamma, brightness, color augmentation
         do_augment = random.random()
         if do_augment > 0.5:
-            image = self.augment_image(image)
+            image[...,:3] = self.augment_image(image[...,:3])
 
         return image, depth_gt, intrinsics
 
