@@ -15,17 +15,15 @@ from utils import RunningAverageDict
 
 
 KITTI_DISTANCE_BUCKETS = [
-    [0, 25],
-    [25, 50],
-    [50, 100],
-    [100, 256]
+    [0, 30],
+    [30, 60],
+    [60, 80],
 ]
 
 NYU_DISTANCE_BUCKETS = [
-    [0, 2.5],
-    [2.5, 5],
-    [5, 7.5],
-    [7.5, 10]
+    [0, 4],
+    [4, 8],
+    [8, 10],
 ]
 
 def compute_errors(gt, pred, eval_range=None):
@@ -234,7 +232,7 @@ if __name__ == '__main__':
         args.min_depth_eval, args.max_depth_eval = NYU_DEPTH_MIN, NYU_DEPTH_MAX
     else:
         raise NotImplementedError("Only KITTI and NYU are supported")
-    model = UnetAdaptiveBins.build(n_bins=args.n_bins, min_val=args.min_depth, max_val=args.max_depth, norm='linear').to(device)
+    model = UnetAdaptiveBins.build(n_bins=args.n_bins, min_val=KITTI_DEPTH_MIN, max_val=KITTI_DEPTH_MAX, norm='linear').to(device)
     model = model_io.load_checkpoint(args.checkpoint_path, model)[0]
     model = model.eval()
 
