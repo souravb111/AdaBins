@@ -2849,8 +2849,6 @@
 /mnt/remote/shared_data/datasets/nyu_depth_v2_sync/office_0004_out/office_0004_2_39rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/office_0004_out/office_0004_2_39depth.png
 /mnt/remote/shared_data/datasets/nyu_depth_v2_sync/office_0004_out/office_0004_2_67rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/office_0004_out/office_0004_2_67depth.png
 /mnt/remote/shared_data/datasets/nyu_depth_v2_sync/office_0004_out/office_0004_2_76rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/office_0004_out/office_0004_2_76depth.png
-/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/office_0004_out/office_0004_2_66rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/office_0004_out/office_0004_2_66depth.png
-/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/office_0004_out/office_0004_2_77rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/office_0004_out/office_0004_2_77depth.png
 /mnt/remote/shared_data/datasets/nyu_depth_v2_sync/office_0004_out/office_0004_2_71rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/office_0004_out/office_0004_2_71depth.png
 /mnt/remote/shared_data/datasets/nyu_depth_v2_sync/office_0004_out/office_0004_2_74rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/office_0004_out/office_0004_2_74depth.png
 /mnt/remote/shared_data/datasets/nyu_depth_v2_sync/office_0004_out/office_0004_2_61rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/office_0004_out/office_0004_2_61depth.png
@@ -3876,7 +3874,6 @@
 /mnt/remote/shared_data/datasets/nyu_depth_v2_sync/classroom_0021_out/classroom_0021_2_12rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/classroom_0021_out/classroom_0021_2_12depth.png
 /mnt/remote/shared_data/datasets/nyu_depth_v2_sync/classroom_0021_out/classroom_0021_8_11rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/classroom_0021_out/classroom_0021_8_11depth.png
 /mnt/remote/shared_data/datasets/nyu_depth_v2_sync/classroom_0021_out/classroom_0021_5_39rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/classroom_0021_out/classroom_0021_5_39depth.png
-/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/living_room_0002_out/living_room_0002_1_32rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/living_room_0002_out/living_room_0002_1_32depth.png
 /mnt/remote/shared_data/datasets/nyu_depth_v2_sync/living_room_0002_out/living_room_0002_1_39rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/living_room_0002_out/living_room_0002_1_39depth.png
 /mnt/remote/shared_data/datasets/nyu_depth_v2_sync/living_room_0002_out/living_room_0002_1_36rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/living_room_0002_out/living_room_0002_1_36depth.png
 /mnt/remote/shared_data/datasets/nyu_depth_v2_sync/living_room_0002_out/living_room_0002_1_65rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/living_room_0002_out/living_room_0002_1_65depth.png
@@ -16695,7 +16692,6 @@
 /mnt/remote/shared_data/datasets/nyu_depth_v2_sync/living_room_0030b_out/living_room_0030b_5_62rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/living_room_0030b_out/living_room_0030b_5_62depth.png
 /mnt/remote/shared_data/datasets/nyu_depth_v2_sync/living_room_0030b_out/living_room_0030b_5_113rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/living_room_0030b_out/living_room_0030b_5_113depth.png
 /mnt/remote/shared_data/datasets/nyu_depth_v2_sync/living_room_0030b_out/living_room_0030b_5_130rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/living_room_0030b_out/living_room_0030b_5_130depth.png
-/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/living_room_0030b_out/living_room_0030b_5_59rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/living_room_0030b_out/living_room_0030b_5_59depth.png
 /mnt/remote/shared_data/datasets/nyu_depth_v2_sync/living_room_0030b_out/living_room_0030b_5_78rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/living_room_0030b_out/living_room_0030b_5_78depth.png
 /mnt/remote/shared_data/datasets/nyu_depth_v2_sync/living_room_0030b_out/living_room_0030b_5_74rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/living_room_0030b_out/living_room_0030b_5_74depth.png
 /mnt/remote/shared_data/datasets/nyu_depth_v2_sync/living_room_0030b_out/living_room_0030b_5_111rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/living_room_0030b_out/living_room_0030b_5_111depth.png
@@ -16708,7 +16704,6 @@
 /mnt/remote/shared_data/datasets/nyu_depth_v2_sync/living_room_0030b_out/living_room_0030b_5_91rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/living_room_0030b_out/living_room_0030b_5_91depth.png
 /mnt/remote/shared_data/datasets/nyu_depth_v2_sync/living_room_0030b_out/living_room_0030b_5_88rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/living_room_0030b_out/living_room_0030b_5_88depth.png
 /mnt/remote/shared_data/datasets/nyu_depth_v2_sync/living_room_0030b_out/living_room_0030b_5_153rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/living_room_0030b_out/living_room_0030b_5_153depth.png
-/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/living_room_0030b_out/living_room_0030b_5_60rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/living_room_0030b_out/living_room_0030b_5_60depth.png
 /mnt/remote/shared_data/datasets/nyu_depth_v2_sync/living_room_0030b_out/living_room_0030b_5_90rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/living_room_0030b_out/living_room_0030b_5_90depth.png
 /mnt/remote/shared_data/datasets/nyu_depth_v2_sync/living_room_0030b_out/living_room_0030b_5_114rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/living_room_0030b_out/living_room_0030b_5_114depth.png
 /mnt/remote/shared_data/datasets/nyu_depth_v2_sync/living_room_0030b_out/living_room_0030b_5_96rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/living_room_0030b_out/living_room_0030b_5_96depth.png
@@ -18295,7 +18290,6 @@
 /mnt/remote/shared_data/datasets/nyu_depth_v2_sync/bedroom_0094_out/bedroom_0094_7_28rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/bedroom_0094_out/bedroom_0094_7_28depth.png
 /mnt/remote/shared_data/datasets/nyu_depth_v2_sync/bedroom_0094_out/bedroom_0094_7_24rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/bedroom_0094_out/bedroom_0094_7_24depth.png
 /mnt/remote/shared_data/datasets/nyu_depth_v2_sync/bedroom_0094_out/bedroom_0094_8_10rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/bedroom_0094_out/bedroom_0094_8_10depth.png
-/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/bedroom_0094_out/bedroom_0094_6_19rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/bedroom_0094_out/bedroom_0094_6_19depth.png
 /mnt/remote/shared_data/datasets/nyu_depth_v2_sync/bedroom_0094_out/bedroom_0094_1_1rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/bedroom_0094_out/bedroom_0094_1_1depth.png
 /mnt/remote/shared_data/datasets/nyu_depth_v2_sync/bedroom_0094_out/bedroom_0094_5_21rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/bedroom_0094_out/bedroom_0094_5_21depth.png
 /mnt/remote/shared_data/datasets/nyu_depth_v2_sync/bedroom_0094_out/bedroom_0094_7_4rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/bedroom_0094_out/bedroom_0094_7_4depth.png
@@ -18310,7 +18304,6 @@
 /mnt/remote/shared_data/datasets/nyu_depth_v2_sync/bedroom_0094_out/bedroom_0094_8_23rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/bedroom_0094_out/bedroom_0094_8_23depth.png
 /mnt/remote/shared_data/datasets/nyu_depth_v2_sync/bedroom_0094_out/bedroom_0094_1_36rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/bedroom_0094_out/bedroom_0094_1_36depth.png
 /mnt/remote/shared_data/datasets/nyu_depth_v2_sync/bedroom_0094_out/bedroom_0094_2_6rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/bedroom_0094_out/bedroom_0094_2_6depth.png
-/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/bedroom_0094_out/bedroom_0094_6_25rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/bedroom_0094_out/bedroom_0094_6_25depth.png
 /mnt/remote/shared_data/datasets/nyu_depth_v2_sync/bedroom_0094_out/bedroom_0094_3_35rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/bedroom_0094_out/bedroom_0094_3_35depth.png
 /mnt/remote/shared_data/datasets/nyu_depth_v2_sync/bedroom_0094_out/bedroom_0094_2_26rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/bedroom_0094_out/bedroom_0094_2_26depth.png
 /mnt/remote/shared_data/datasets/nyu_depth_v2_sync/bedroom_0094_out/bedroom_0094_4_11rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/bedroom_0094_out/bedroom_0094_4_11depth.png
@@ -18421,7 +18414,6 @@
 /mnt/remote/shared_data/datasets/nyu_depth_v2_sync/kitchen_0060_out/kitchen_0060_4_67rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/kitchen_0060_out/kitchen_0060_4_67depth.png
 /mnt/remote/shared_data/datasets/nyu_depth_v2_sync/kitchen_0060_out/kitchen_0060_5_23rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/kitchen_0060_out/kitchen_0060_5_23depth.png
 /mnt/remote/shared_data/datasets/nyu_depth_v2_sync/kitchen_0060_out/kitchen_0060_7_103rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/kitchen_0060_out/kitchen_0060_7_103depth.png
-/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/kitchen_0060_out/kitchen_0060_8_68rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/kitchen_0060_out/kitchen_0060_8_68depth.png
 /mnt/remote/shared_data/datasets/nyu_depth_v2_sync/kitchen_0060_out/kitchen_0060_4_122rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/kitchen_0060_out/kitchen_0060_4_122depth.png
 /mnt/remote/shared_data/datasets/nyu_depth_v2_sync/kitchen_0060_out/kitchen_0060_5_107rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/kitchen_0060_out/kitchen_0060_5_107depth.png
 /mnt/remote/shared_data/datasets/nyu_depth_v2_sync/kitchen_0060_out/kitchen_0060_3_125rgb.png,/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/kitchen_0060_out/kitchen_0060_3_125depth.png
