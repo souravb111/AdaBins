@@ -601,6 +601,8 @@ class BothDatasets(Dataset):
             }
         else:
             image = np.asarray(image, dtype=np.float32) / 255.0
+            if USE_SAM:
+                image = np.concatenate((image, sam_feats), axis=-1)
             depth_gt = np.asarray(depth_gt, dtype=np.float32)
             depth_gt = np.expand_dims(depth_gt, axis=2)
             depth_gt = depth_gt / depth_norm
