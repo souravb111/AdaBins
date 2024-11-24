@@ -307,6 +307,7 @@ class DataLoadPreprocess(Dataset):
         else:
             depth_gt = depth_gt.crop((43, 45, 608, 472))
             image = image.crop((43, 45, 608, 472))
+            sam_feats = sam_feats[..., 45:472, 43:608]
             self.image_height = 416
             self.image_width = 544
         sam_feats = sam_feats[0, ...].permute(1, 2, 0).float().numpy()
