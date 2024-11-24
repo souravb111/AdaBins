@@ -198,14 +198,14 @@ class DepthDataLoader(object):
                 self.eval_sampler = None
             self.data = DataLoader(self.testing_samples, 1,
                                    shuffle=False,
-                                   num_workers=args.num_threads,
+                                   num_workers=0,
                                    pin_memory=True,
                                    sampler=self.eval_sampler,
                                    persistent_workers=False)
 
         elif mode == 'test':
             self.testing_samples = DataLoadPreprocess(args, mode, transform=preprocessing_transforms(mode))
-            self.data = DataLoader(self.testing_samples, 1, shuffle=False, num_workers=args.num_threads, pin_memory=False)
+            self.data = DataLoader(self.testing_samples, 1, shuffle=False, num_workers=0, pin_memory=False)
 
         else:
             print('mode should be one of \'train, test, eval\'. Got {}'.format(mode))
@@ -262,7 +262,11 @@ class DataLoadPreprocess(Dataset):
         
         if self.args.dataset == 'nyu':
             intrinsics = self.intrinsics.copy()
-            # TODO: sam_feats_path = ...
+            sam_feats_path = raw_path.replace("nyu_depth_v2_sync", "nyu_sam_feats_downsample").replace(".png", ".npy")
+            # sam_feats = np.load(sam_f_path)
+            # # ...
+            # sam_feats = torch.nn.functional.interpolate(torch.from_numpy(sam_feats), scale_factor=4).permute(0,2,3,1).numpy()
+            # return sam_feats[0]
         else:
             # intrinsics_path = Path(raw_path).parent.parent.parent.parent / 'calib_cam_to_cam.txt'
             # with open(intrinsics_path, "r") as f:
@@ -281,9 +285,11 @@ class DataLoadPreprocess(Dataset):
         # with open(sam_feats_path, "rb") as sam_feats_f:
         #     sam_feats = torch.load(sam_feats_f, map_location='cpu')
         if sam_feats_path.endswith(".npy"):
-            with open(sam_feats_path, "rb") as f:
-                buf = io.BytesIO(f.read())
-                sam_feats = torch.from_numpy(load_np(buf))
+            sam_feats = torch.from_numpy(np.load(sam_feats_path))
+            sam_feats = torch.nn.functional.interpolate(sam_feats, scale_factor=4)
+            # with open(sam_feats_path, "rb") as f:
+            #     buf = io.BytesIO(f.read())
+            #     sam_feats = torch.from_numpy(load_np(buf))
         else:
             h5f = h5py.File(sam_feats_path,'r')
             sam_feats = torch.from_numpy(h5f['data'][:])

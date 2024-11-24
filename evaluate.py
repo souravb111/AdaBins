@@ -15,10 +15,9 @@ from utils import RunningAverageDict
 
 
 KITTI_DISTANCE_BUCKETS = [
-    [0, 25],
-    [25, 50],
-    [50, 100],
-    [100, 256]
+    [0, 30],
+    [30, 60],
+    [60, 80]
 ]
 
 NYU_DISTANCE_BUCKETS = [
@@ -77,8 +76,8 @@ def compute_errors(gt, pred, eval_range=None):
 #     std = torch.Tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1).to(device)
 #     return x * std + mean
 #
-def predict_tta(model, image, intrinsics, args):
-    pred = model(image, intrinsics)[-1]
+def predict_tta(model, image, intrinsics, args, sam_feats):
+    pred = model(image, intrinsics, sam_feats)[-1]
     #     pred = utils.depth_norm(pred)
     #     pred = nn.functional.interpolate(pred, depth.shape[-2:], mode='bilinear', align_corners=True)
     #     pred = np.clip(pred.cpu().numpy(), 10, 1000)/100.
@@ -120,7 +119,8 @@ def eval(model, test_loader, args, gpus=None, ):
             gt = batch['depth'].to(device) 
             intrinsics = batch['intrinsics'].to(device)
             gt_mask = batch['depth_mask'].squeeze()
-            final = predict_tta(model, image, intrinsics, args)
+            sam_feats = batch['sam_feats'].to(device)
+            final = predict_tta(model, image, intrinsics, args, sam_feats)
             final = final.squeeze().cpu().numpy()
 
             # final[final < args.min_depth] = args.min_depth
@@ -234,7 +234,7 @@ if __name__ == '__main__':
         args.min_depth_eval, args.max_depth_eval = NYU_DEPTH_MIN, NYU_DEPTH_MAX
     else:
         raise NotImplementedError("Only KITTI and NYU are supported")
-    model = UnetAdaptiveBins.build(n_bins=args.n_bins, min_val=args.min_depth, max_val=args.max_depth, norm='linear').to(device)
+    model = UnetAdaptiveBins.build(n_bins=args.n_bins, min_val=KITTI_DEPTH_MIN, max_val=KITTI_DEPTH_MAX, norm='linear').to(device)
     model = model_io.load_checkpoint(args.checkpoint_path, model)[0]
     model = model.eval()
 
