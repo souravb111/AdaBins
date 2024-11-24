@@ -21,10 +21,9 @@ KITTI_DISTANCE_BUCKETS = [
 ]
 
 NYU_DISTANCE_BUCKETS = [
-    [0, 2.5],
-    [2.5, 5],
-    [5, 7.5],
-    [7.5, 10]
+    [0, 4],
+    [4, 8],
+    [8, 10],
 ]
 
 def compute_errors(gt, pred, eval_range=None):
