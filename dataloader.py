@@ -204,6 +204,7 @@ class DepthDataLoader(object):
                                    pin_memory=False,
                                    sampler=self.eval_sampler,
                                    collate_fn=collate,
+                                   drop_last=True,
                                    )
 
         elif mode == 'test':
