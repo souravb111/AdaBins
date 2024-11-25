@@ -184,7 +184,7 @@ class DepthDataLoader(object):
 
             self.data = DataLoader(self.training_samples, args.batch_size,
                                    shuffle=(self.train_sampler is None),
-                                   num_workers=args.num_threads,
+                                   num_workers=0,
                                    pin_memory=True,
                                    sampler=self.train_sampler,
                                    persistent_workers=False)
