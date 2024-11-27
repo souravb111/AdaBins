@@ -15,17 +15,15 @@ from utils import RunningAverageDict
 
 
 KITTI_DISTANCE_BUCKETS = [
-    [0, 25],
-    [25, 50],
-    [50, 100],
-    [100, 256]
+    [0, 30],
+    [30, 60],
+    [60, 80],
 ]
 
 NYU_DISTANCE_BUCKETS = [
-    [0, 2.5],
-    [2.5, 5],
-    [5, 7.5],
-    [7.5, 10]
+    [0, 4],
+    [4, 8],
+    [8, 10],
 ]
 
 def compute_errors(gt, pred, eval_range=None):
@@ -177,6 +175,8 @@ def eval(model, test_loader, args, gpus=None, ):
     print(f"Total invalid: {total_invalid}")
     metrics = {k: round(v, 3) for k, v in metrics.get_value().items()}
     print(f"Metrics: {metrics}")
+    print(k for k in metrics.keys() if k.startswith("abs_rel") or k.startswith("rmse"))
+    print(v for k,v in metrics.items() if k.startswith("abs_rel") or k.startswith("rmse"))
 
 
 def convert_arg_line_to_args(arg_line):
@@ -221,6 +221,7 @@ if __name__ == '__main__':
     else:
         args = parser.parse_args()
 
+    args.both_data = False
     # args = parser.parse_args()
     args.gpu = int(args.gpu) if args.gpu is not None else 0
     args.distributed = False

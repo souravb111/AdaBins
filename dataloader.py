@@ -267,15 +267,28 @@ class DataLoadPreprocess(Dataset):
             print(f"Encountered Pillow loading error on {idx} with raw path {self.raw_paths[idx]} and gt path {self.gt_paths[idx]}")
             rand_idx = torch.randint(0, len(self), (1,)).item()
             return self.__getitem__(rand_idx)
-
-    def _load_sam_feats(self, raw_path: str) -> torch.Tensor:
-        sam_f_path = raw_path.replace("nyu_depth_v2_sync", "nyu_sam_feats")
-        sam_feats = torch.load(sam_f_path)
-        sam_feats_np = sam_feats.numpy()[0]
-        # https://github.com/pytorch/pytorch/issues/102334
-        del sam_feats
-        gc.collect()
-        return sam_feats_np
+    
+    def _load_nyu_sam_feats(self, raw_path: str) -> torch.Tensor:
+        sam_f_path = raw_path.replace("nyu_depth_v2_sync", "nyu_sam_feats_downsample").replace(".png", ".npy")
+        sam_feats = np.load(sam_f_path)
+        sam_feats = torch.nn.functional.interpolate(torch.from_numpy(sam_feats), scale_factor=4).permute(0,2,3,1).numpy()
+        return sam_feats[0]
+    
+    def _load_kitti_sam_feats(self, raw_path: str) -> torch.Tensor:
+        sam_feats_path = raw_path.replace("kitti-depth", "kitti-depth-sam-feats-np").replace(".png", ".h5")
+        if not os.path.exists(sam_feats_path):
+            sam_feats_path = raw_path.replace("kitti-depth", "kitti-depth-sam-feats-np").replace(".png", ".npy")
+        
+        if sam_feats_path.endswith(".npy"):
+            with open(sam_feats_path, "rb") as f:
+                buf = io.BytesIO(f.read())
+                sam_feats = torch.from_numpy(load_np(buf))
+        else:
+            h5f = h5py.File(sam_feats_path,'r')
+            sam_feats = h5f['data'][:]
+            h5f.close()
+        
+        return np.transpose(sam_feats[0], (1, 2 , 0)).astype(np.float32)
 
 
     def _getitem__(self, idx):
@@ -303,11 +316,17 @@ class DataLoadPreprocess(Dataset):
             depth_gt = depth_gt.crop((left_margin, top_margin, left_margin + 1216, top_margin + 352))
             self.image_height = 352
             self.image_width = 1216
+            if USE_SAM:
+                sam_feats = self._load_kitti_sam_feats(raw_path)[
+                    top_margin:top_margin+self.image_height, left_margin:left_margin+self.image_width
+                ] 
         else:
             depth_gt = depth_gt.crop((43, 45, 608, 472))
             image = image.crop((43, 45, 608, 472))
             self.image_height = 416
             self.image_width = 544
+            if USE_SAM:
+                sam_feats = self._load_nyu_sam_feats(raw_path)[45:472, 43:608]
                 
         if self.mode == 'train':
             # if self.args.do_random_rotate is True:
@@ -317,16 +336,18 @@ class DataLoadPreprocess(Dataset):
 
             # image, depth_gt = self.random_crop(image, depth_gt, self.image_height, self.args.image_width)
             image = np.asarray(image, dtype=np.float32) / 255.0
+            if USE_SAM:
+                image = np.concatenate((image, sam_feats), axis=-1)
             depth_gt = np.asarray(depth_gt, dtype=np.float32)
             depth_gt = np.expand_dims(depth_gt, axis=2)
             depth_gt = depth_gt / self.depth_normalizer
             image, depth_gt, intrinsics = self.train_preprocess(image, depth_gt, intrinsics)
             depth_gt_mask = np.logical_and(depth_gt > self.depth_min, depth_gt < self.depth_max)
-            sam_feats = self._load_sam_feats(raw_path)[:, 45:472, 43:608].transpose(1, 2, 0)
-            image = np.concatenate((image, sam_feats), axis=-1)
             sample = {'image': image, 'depth': depth_gt, 'focal': focal, 'depth_mask': depth_gt_mask, 'intrinsics': intrinsics, "sam_feats": sam_feats}
         else:
             image = np.asarray(image, dtype=np.float32) / 255.0
+            if USE_SAM:
+                image = np.concatenate((image, sam_feats), axis=-1)
             depth_gt = np.asarray(depth_gt, dtype=np.float32)
             depth_gt = np.expand_dims(depth_gt, axis=2)
             depth_gt = depth_gt / self.depth_normalizer
@@ -442,11 +463,12 @@ class ToTensor(object):
         depth = pad_images(depth, multiple_of=32)[0]
         depth_mask = pad_images(depth_mask, multiple_of=32)[0]
 
-        dataset = sample["dataset"]
+        dataset = sample.get("dataset", "kitti") #["dataset"]
         if self.mode == 'train':
             return {f'image_{dataset}': image, f'depth_{dataset}': depth, 'focal': focal, f'depth_mask_{dataset}': depth_mask, 'intrinsics': intrinsics}
         else:
-            return {f'image_{dataset}': image, f'depth_{dataset}': depth, 'focal': focal, 'image_path': sample['image_path'], 'depth_path': sample['depth_path'], f'depth_mask_{dataset}': depth_mask, 'intrinsics': intrinsics}
+            #return {f'image_{dataset}': image, f'depth_{dataset}': depth, 'focal': focal, 'image_path': sample['image_path'], 'depth_path': sample['depth_path'], f'depth_mask_{dataset}': depth_mask, 'intrinsics': intrinsics}
+            return {f'image': image, f'depth': depth, 'focal': focal, 'image_path': sample['image_path'], 'depth_path': sample['depth_path'], f'depth_mask': depth_mask, 'intrinsics': intrinsics}
 
     def to_tensor(self, pic):
         if not (_is_pil_image(pic) or _is_numpy_image(pic)):
@@ -521,7 +543,6 @@ class BothDatasets(Dataset):
     def _load_nyu_sam_feats(self, raw_path: str) -> torch.Tensor:
         sam_f_path = raw_path.replace("nyu_depth_v2_sync", "nyu_sam_feats_downsample").replace(".png", ".npy")
         sam_feats = np.load(sam_f_path)
-        # ...
         sam_feats = torch.nn.functional.interpolate(torch.from_numpy(sam_feats), scale_factor=4).permute(0,2,3,1).numpy()
         return sam_feats[0]
     
