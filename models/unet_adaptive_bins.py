@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from .miniViT import mViT
 
 
-USE_SAM = True
+USE_SAM = False
 
 class UpSampleBN(nn.Module):
     def __init__(self, skip_input, output_features):

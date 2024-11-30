@@ -259,9 +259,6 @@ def train(model, args, epochs=10, experiment_name="DeepLab", lr=0.0001, root="."
                 for j, lr in enumerate(scheduler.get_last_lr()):
                     wandb.log({f"LR_{j}": lr})
 
-                if step % logging_vis_interval == 0: # TODO can tune this
-                    log_images(img.clone().cpu(), depth.clone().cpu(), pred.detach().clone().cpu(), args, step)
-
             step += 1
             scheduler.step()
 

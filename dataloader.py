@@ -188,6 +188,7 @@ class DepthDataLoader(object):
                                    pin_memory=True,
                                    sampler=self.train_sampler,
                                    collate_fn=collate,
+                                   drop_last=True,
                                    )
 
         elif mode == 'eval':
