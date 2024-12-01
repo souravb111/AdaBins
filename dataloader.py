@@ -10,7 +10,11 @@ from pathlib import Path
 import yaml
 from typing import Tuple
 import math
+import io
+import h5py
+import hdf5plugin
 
+from fastnumpyio import load as load_np
 import cv2
 import numpy as np
 import torch
@@ -23,7 +27,7 @@ from fast_np import load as load_np
 from models.unet_adaptive_bins import USE_SAM
 
 KITTI_DEPTH_MIN = 1e-3
-KITTI_DEPTH_MAX = 256
+KITTI_DEPTH_MAX = 150
 NYU_DEPTH_MIN = 1e-3
 NYU_DEPTH_MAX = 10
 
@@ -169,7 +173,7 @@ class DepthDataLoader(object):
 
         elif mode == 'test':
             self.testing_samples = DataLoadPreprocess(args, mode, transform=preprocessing_transforms(mode))
-            self.data = DataLoader(self.testing_samples, 1, shuffle=False, num_workers=1)
+            self.data = DataLoader(self.testing_samples, 1, shuffle=False, num_workers=0, pin_memory=False)
 
         else:
             print('mode should be one of \'train, test, eval\'. Got {}'.format(mode))
@@ -256,18 +260,42 @@ class DataLoadPreprocess(Dataset):
         
         if self.args.dataset == 'nyu':
             intrinsics = self.intrinsics.copy()
+            sam_feats_path = raw_path.replace("nyu_depth_v2_sync", "nyu_sam_feats_downsample").replace(".png", ".npy")
+            # sam_feats = np.load(sam_f_path)
+            # # ...
+            # sam_feats = torch.nn.functional.interpolate(torch.from_numpy(sam_feats), scale_factor=4).permute(0,2,3,1).numpy()
+            # return sam_feats[0]
         else:
-            intrinsics_path = Path(raw_path).parent.parent.parent.parent / 'calib_cam_to_cam.txt'
-            with open(intrinsics_path, "r") as f:
-                intrinsics_str = yaml.safe_load(f)
-            intrinsics_str = intrinsics_str['K_02'] if 'image_02' in raw_path else intrinsics_str['K_03']
-            intrinsics = np.array([float(x) for x in intrinsics_str.split(' ')]).reshape((3, 3))
+            # intrinsics_path = Path(raw_path).parent.parent.parent.parent / 'calib_cam_to_cam.txt'
+            # with open(intrinsics_path, "r") as f:
+            #     intrinsics_str = yaml.safe_load(f)
+            # intrinsics_str = intrinsics_str['K_02'] if 'image_02' in raw_path else intrinsics_str['K_03']
+            # intrinsics = np.array([float(x) for x in intrinsics_str.split(' ')]).reshape((3, 3))
+            sam_feats_path = raw_path.replace("kitti-depth", "kitti-depth-sam-feats-np").replace(".png", ".h5")
+            if not os.path.exists(sam_feats_path):
+                sam_feats_path = raw_path.replace("kitti-depth", "kitti-depth-sam-feats-np").replace(".png", ".npy")
+            # sam_feats_path = raw_path.replace("kitti-depth", "kitti-depth-sam-feats")
+        intrinsics = np.eye(3)
         focal = 0.5 * (intrinsics[0, 0] + intrinsics[1, 1])
 
         image = Image.open(raw_path)
         depth_gt = Image.open(gt_path)
+        # with open(sam_feats_path, "rb") as sam_feats_f:
+        #     sam_feats = torch.load(sam_feats_f, map_location='cpu')
+        if sam_feats_path.endswith(".npy"):
+            sam_feats = torch.from_numpy(np.load(sam_feats_path))
+            sam_feats = torch.nn.functional.interpolate(sam_feats, scale_factor=4)
+            # with open(sam_feats_path, "rb") as f:
+            #     buf = io.BytesIO(f.read())
+            #     sam_feats = torch.from_numpy(load_np(buf))
+        else:
+            h5f = h5py.File(sam_feats_path,'r')
+            sam_feats = torch.from_numpy(h5f['data'][:])
+            h5f.close()
 
         if self.args.dataset == 'kitti':
+            self.image_height = 250
+            self.image_width = 1200
             height, width = image.height, image.width
             top_margin = int(height - 352)
             left_margin = int((width - 1216) / 2)
@@ -294,7 +322,10 @@ class DataLoadPreprocess(Dataset):
             depth_gt = np.asarray(depth_gt, dtype=np.float32)
             depth_gt = np.expand_dims(depth_gt, axis=2)
             depth_gt = depth_gt / self.depth_normalizer
+            image = np.concatenate([image, sam_feats], axis=2)
             image, depth_gt, intrinsics = self.train_preprocess(image, depth_gt, intrinsics)
+            sam_feats = image[..., 3:]
+            image = image[..., :3]
             depth_gt_mask = np.logical_and(depth_gt > self.depth_min, depth_gt < self.depth_max)
             sample = {'image': image, 'depth': depth_gt, 'focal': focal, 'depth_mask': depth_gt_mask, 'intrinsics': intrinsics, "sam_feats": sam_feats}
         else:
@@ -305,7 +336,7 @@ class DataLoadPreprocess(Dataset):
             depth_gt = np.expand_dims(depth_gt, axis=2)
             depth_gt = depth_gt / self.depth_normalizer
             depth_gt_mask = np.logical_and(depth_gt > self.depth_min, depth_gt < self.depth_max)
-            sample = {'image': image, 'depth': depth_gt, 'focal': focal, 'image_path': raw_path, 'depth_path': gt_path, 'depth_mask': depth_gt_mask, 'intrinsics': intrinsics}
+            sample = {'image': image, 'depth': depth_gt, 'focal': focal, 'image_path': raw_path, 'depth_path': gt_path, 'depth_mask': depth_gt_mask, 'intrinsics': intrinsics, 'sam_feats': sam_feats}
 
         if self.transform:
             sample = self.transform(sample)
@@ -401,11 +432,16 @@ class ToTensor(object):
             return {f'image': image, f'depth': depth, 'focal': focal, 'image_path': sample['image_path'], 'depth_path': sample['depth_path'], f'depth_mask': depth_mask, 'intrinsics': intrinsics}
 
     def to_tensor(self, pic):
+        if isinstance(pic, torch.Tensor):
+            return pic
+        
         if not (_is_pil_image(pic) or _is_numpy_image(pic)):
             raise TypeError(
                 'pic should be PIL Image or ndarray. Got {}'.format(type(pic)))
 
         if isinstance(pic, np.ndarray):
+            if len(pic.shape) == 2:
+                pic = pic[..., None]
             img = torch.from_numpy(pic.transpose((2, 0, 1)))
             return img
 

@@ -39,8 +39,7 @@ class DecoderBN(nn.Module):
 
         self.sam_bn = nn.BatchNorm2d(32)
 
-    def forward(self, features, intrinsics):
-        features, sam_features = features
+    def forward(self, features, intrinsics=None, sam_features=None):
         x_block0, x_block1, x_block2, x_block3, x_block4 = features[4], features[5], features[6], features[8], features[
             11]
 
@@ -64,6 +63,7 @@ class Encoder(nn.Module):
     def __init__(self, backend):
         super(Encoder, self).__init__()
         self.original_model = backend
+        del self.original_model.bn2
 
     def forward(self, x):
         x, samf = x[:, :3], x[:, 3:]
@@ -93,8 +93,8 @@ class UnetAdaptiveBins(nn.Module):
         self.conv_out = nn.Sequential(nn.Conv2d(128, n_bins, kernel_size=1, stride=1, padding=0),
                                       nn.Softmax(dim=1))
 
-    def forward(self, x, intrinsics, **kwargs):
-        unet_out = self.decoder(self.encoder(x), intrinsics, **kwargs)
+    def forward(self, x, intrinsics, sam_feats, **kwargs):
+        unet_out = self.decoder(self.encoder(x), intrinsics=intrinsics, sam_feats=sam_feats, **kwargs)
         bin_widths_normed, range_attention_maps = self.adaptive_bins_layer(unet_out)
         out = self.conv_out(range_attention_maps)
 

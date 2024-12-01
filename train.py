@@ -3,10 +3,12 @@ import os
 import sys
 import uuid
 from datetime import datetime as dt
+import gc
 
 import random
 import numpy as np
 import torch
+torch.multiprocessing.set_sharing_strategy('file_system')
 import torch.distributed as dist
 import torch.multiprocessing as mp
 import torch.nn as nn
@@ -194,7 +196,6 @@ def train(model, args, epochs=10, experiment_name="DeepLab", lr=0.0001, root="."
                 img = batch[f'image_{dataset}']
                 depth = batch[f'depth_{dataset}']
                 depth_mask = batch[f'depth_mask_{dataset}']
-                # intrinsics = batch['intrinsics']
 
                 # if NYU, augment long range, can't use name since we hacked it in collate
                 if img.shape[-1] < 900:
@@ -365,10 +366,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Training script. Default values of all arguments are recommended for reproducibility', fromfile_prefix_chars='@',
                                      conflict_handler='resolve')
     parser.convert_arg_line_to_args = convert_arg_line_to_args
-    parser.add_argument('--epochs', default=4, type=int, help='number of total epochs to run')
+    parser.add_argument('--epochs', default=6, type=int, help='number of total epochs to run')
     parser.add_argument('--n-bins', '--n_bins', default=256, type=int,
                         help='number of bins/buckets to divide depth range into')
-    parser.add_argument('--lr', '--learning-rate', default=3e-5, type=float, help='max learning rate')
+    parser.add_argument('--lr', '--learning-rate', default=1e-4, type=float, help='max learning rate')
     parser.add_argument('--wd', '--weight-decay', default=0.1, type=float, help='weight decay')
     parser.add_argument('--w_chamfer', '--w-chamfer', default=0.1, type=float, help="weight value for chamfer loss")
     parser.add_argument('--div-factor', '--div_factor', default=25, type=float, help="Initial div factor for lr")

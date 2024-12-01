@@ -102,7 +102,8 @@ def eval(model, test_loader, args, gpus=None, ):
             gt = batch['depth'].to(device) 
             intrinsics = batch['intrinsics'].to(device)
             gt_mask = batch['depth_mask'].squeeze()
-            final = predict_tta(model, image, intrinsics, args)
+            sam_feats = batch['sam_feats'].to(device)
+            final = predict_tta(model, image, intrinsics, args, sam_feats)
             final = final.squeeze().cpu().numpy()
 
             final[np.isinf(final)] = args.max_depth_eval
@@ -194,7 +195,7 @@ if __name__ == '__main__':
         args.min_depth_eval, args.max_depth_eval = NYU_DEPTH_MIN, NYU_DEPTH_MAX
     else:
         raise NotImplementedError("Only KITTI and NYU are supported")
-    model = UnetAdaptiveBins.build(n_bins=args.n_bins, min_val=args.min_depth, max_val=args.max_depth, norm='linear').to(device)
+    model = UnetAdaptiveBins.build(n_bins=args.n_bins, min_val=KITTI_DEPTH_MIN, max_val=KITTI_DEPTH_MAX, norm='linear').to(device)
     model = model_io.load_checkpoint(args.checkpoint_path, model)[0]
     model = model.eval()
 
