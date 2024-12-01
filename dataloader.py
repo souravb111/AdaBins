@@ -184,10 +184,10 @@ class DepthDataLoader(object):
 
             self.data = DataLoader(self.training_samples, args.batch_size,
                                    shuffle=(self.train_sampler is None),
-                                   num_workers=0,
+                                   num_workers=8,
                                    pin_memory=True,
                                    sampler=self.train_sampler,
-                                   persistent_workers=False)
+                                   persistent_workers=True)
 
         elif mode == 'eval':
             self.testing_samples = DataLoadPreprocess(args, mode, transform=preprocessing_transforms(mode))
@@ -198,10 +198,10 @@ class DepthDataLoader(object):
                 self.eval_sampler = None
             self.data = DataLoader(self.testing_samples, 1,
                                    shuffle=False,
-                                   num_workers=0,
+                                   num_workers=8,
                                    pin_memory=True,
                                    sampler=self.eval_sampler,
-                                   persistent_workers=False)
+                                   persistent_workers=True)
 
         elif mode == 'test':
             self.testing_samples = DataLoadPreprocess(args, mode, transform=preprocessing_transforms(mode))
@@ -296,8 +296,8 @@ class DataLoadPreprocess(Dataset):
             h5f.close()
 
         if self.args.dataset == 'kitti':
-            self.image_height = 250
-            self.image_width = 1200
+            self.image_height = 256
+            self.image_width = 1216
             height, width = image.height, image.width
             top_margin = int(height - self.image_height)
             left_margin = int((width - self.image_width) / 2)
@@ -422,7 +422,7 @@ class ToTensor(object):
         image, focal = sample['image'], sample['focal']
         image = self.to_tensor(image)
         image[:3, ...] = self.normalize(image[:3, ...])
-        image = pad_images(image, multiple_of=32)[0]
+        # image = pad_images(image, multiple_of=32)[0]
 
         if self.mode == 'test':
             return {'image': image, 'focal': focal}
@@ -431,12 +431,12 @@ class ToTensor(object):
         intrinsics = torch.tensor(sample['intrinsics'])
         depth = self.to_tensor(depth)
         depth_mask = self.to_tensor(depth_mask)
-        depth = pad_images(depth, multiple_of=32)[0]
-        depth_mask = pad_images(depth_mask, multiple_of=32)[0]
+        # depth = pad_images(depth, multiple_of=32)[0]
+        # depth_mask = pad_images(depth_mask, multiple_of=32)[0]
         
         sam_feats = sample['sam_feats']
         sam_feats = self.to_tensor(sam_feats)
-        sam_feats = pad_images(sam_feats, multiple_of=32)[0]
+        # sam_feats = pad_images(sam_feats, multiple_of=32)[0]
         if self.mode == 'train':
             return {'image': image, 'depth': depth, 'focal': focal, 'depth_mask': depth_mask, 'intrinsics': intrinsics, 'sam_feats': sam_feats}
         else:
