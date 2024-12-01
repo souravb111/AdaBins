@@ -175,8 +175,8 @@ def eval(model, test_loader, args, gpus=None, ):
     print(f"Total invalid: {total_invalid}")
     metrics = {k: round(v, 3) for k, v in metrics.get_value().items()}
     print(f"Metrics: {metrics}")
-    print(k for k in metrics.keys() if k.startswith("abs_rel") or k.startswith("rmse"))
-    print(v for k,v in metrics.items() if k.startswith("abs_rel") or k.startswith("rmse"))
+    print([k for k in metrics.keys() if k.startswith("abs_rel_") or k.startswith("rmse_")])
+    print([v for k,v in metrics.items() if k.startswith("abs_rel_") or k.startswith("rmse_")])
 
 
 def convert_arg_line_to_args(arg_line):
