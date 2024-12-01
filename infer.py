@@ -7,6 +7,8 @@ import torch.nn as nn
 from PIL import Image
 from torchvision import transforms
 from tqdm import tqdm
+import h5py
+import hdf5plugin
 
 import model_io
 import utils
@@ -88,12 +90,12 @@ class InferenceHelper:
         self.model = model.to(self.device)
 
     @torch.no_grad()
-    def predict_pil(self, pil_image, visualized=False):
+    def predict_pil(self, pil_image, sam_feats, visualized=False):
         # pil_image = pil_image.resize((640, 480))
         img = np.asarray(pil_image) / 255.
 
         img = self.toTensor(img).unsqueeze(0).float().to(self.device)
-        bin_centers, pred = self.predict(img)
+        bin_centers, pred = self.predict(img, sam_feats)
 
         if visualized:
             viz = utils.colorize(torch.from_numpy(pred).unsqueeze(0), vmin=None, vmax=None, cmap='magma')
@@ -103,13 +105,13 @@ class InferenceHelper:
         return bin_centers, pred
 
     @torch.no_grad()
-    def predict(self, image):
-        bins, pred = self.model(image)
+    def predict(self, image, sam_feats):
+        bins, pred = self.model(image, None, sam_feats)
         pred = np.clip(pred.cpu().numpy(), self.min_depth, self.max_depth)
 
         # Flip
         image = torch.Tensor(np.array(image.cpu().numpy())[..., ::-1].copy()).to(self.device)
-        pred_lr = self.model(image)[-1]
+        pred_lr = self.model(image, None, sam_feats)[-1]
         pred_lr = np.clip(pred_lr.cpu().numpy()[..., ::-1], self.min_depth, self.max_depth)
 
         # Take average of original and mirror
@@ -160,10 +162,10 @@ if __name__ == '__main__':
     import matplotlib.pyplot as plt
     from time import time
     # checkpoint = "/home/cfang/AdaBins/checkpoints/kitti_150_6e_baseline.pt"
-    checkpoint = "/mnt/remote/shared_data/users/cfang/AdaBins/checkpoints/kitti_150_aug02.pt"
+    checkpoint = "/mnt/remote/shared_data/users/cfang/AdaBins/checkpoints/kitti_150_6e_sam.pt"
     dataset = "kitti"
     filenames_file_eval = "/home/cfang/AdaBins/kitti/kitti_val.csv"
-    output_dir = "/mnt/remote/shared_data/users/cfang/AdaBins/viz_kitti_aug"
+    output_dir = "/mnt/remote/shared_data/users/cfang/AdaBins/viz_kitti_sam"
     os.makedirs(output_dir, exist_ok=True)
     num_samples = 10
     inferHelper = InferenceHelper(checkpoint=checkpoint, dataset=dataset)
@@ -179,8 +181,13 @@ if __name__ == '__main__':
         idx = rand_perm[i].item()
         raw_path, gt_path = raw_paths[idx], gt_paths[idx]
         image = Image.open(raw_path)
-
-        centers, pred = inferHelper.predict_pil(image)
+        
+        sam_feats_path = raw_path.replace("kitti-depth", "kitti-depth-sam-feats-np").replace(".png", ".h5")
+        h5f = h5py.File(sam_feats_path,'r')
+        sam_feats = torch.from_numpy(h5f['data'][:])
+        h5f.close()
+            
+        centers, pred = inferHelper.predict_pil(image, sam_feats)
         fig = plt.figure(figsize=(10, 10))
         ax = fig.add_subplot(311)
         ax.set_xticklabels([])
