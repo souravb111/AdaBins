@@ -159,12 +159,13 @@ if __name__ == '__main__':
         
     import matplotlib.pyplot as plt
     from time import time
-    # checkpoint = "/home/cfang/AdaBins/checkpoints/kitti_150_lr_aug.py"
-    checkpoint = "/mnt/remote/shared_data/users/cfang/AdaBins/checkpoints/kitti_150_baseline.pt"
+    # checkpoint = "/home/cfang/AdaBins/checkpoints/kitti_150_6e_baseline.pt"
+    checkpoint = "/mnt/remote/shared_data/users/cfang/AdaBins/checkpoints/kitti_150_aug02.pt"
     dataset = "kitti"
-    filenames_file_eval = "/home/james/AdaBins/kitti/kitti_val.csv"
+    filenames_file_eval = "/home/cfang/AdaBins/kitti/kitti_val.csv"
+    output_dir = "/mnt/remote/shared_data/users/cfang/AdaBins/viz_kitti_aug"
+    os.makedirs(output_dir, exist_ok=True)
     num_samples = 10
-    
     inferHelper = InferenceHelper(checkpoint=checkpoint, dataset=dataset)
     
     with open(filenames_file_eval, 'r') as f:
@@ -182,20 +183,21 @@ if __name__ == '__main__':
         centers, pred = inferHelper.predict_pil(image)
         fig = plt.figure(figsize=(10, 10))
         ax = fig.add_subplot(311)
+        ax.set_xticklabels([])
         ax.imshow(image)
         ax.axis('off')
         # ax.set_title("Input")
-        
+
+        depth_gt = np.array(Image.open(gt_path)) / 256.0
         ax = fig.add_subplot(312)
+        ax.imshow(depth_gt, cmap='inferno')
+        ax.axis('off')
+        
+        ax = fig.add_subplot(313)
         ax.imshow(pred.squeeze(), cmap='inferno')
         ax.axis('off')
         # ax.set_title("Pred")
         
-        depth_gt = np.array(Image.open(gt_path)) / 256.0
-        ax = fig.add_subplot(313)
-        ax.imshow(depth_gt, cmap='magma_r')
-        ax.axis('off')
-        
-        plt.savefig(f"viz_imgs/output_{i}.jpg")
+        plt.savefig(f"{output_dir}/output_{i}.jpg")
         plt.close(fig)
     
