@@ -14,7 +14,6 @@ import io
 import h5py
 import hdf5plugin
 
-from fastnumpyio import load as load_np
 import cv2
 import numpy as np
 import torch
@@ -302,8 +301,6 @@ class DataLoadPreprocess(Dataset):
             left_margin = int((width - 1216) / 2)
             image = image.crop((left_margin, top_margin, left_margin + 1216, top_margin + 352))
             depth_gt = depth_gt.crop((left_margin, top_margin, left_margin + 1216, top_margin + 352))
-            self.image_height = 352
-            self.image_width = 1216
             if USE_SAM:
                 sam_feats = self._load_kitti_sam_feats(raw_path)[
                     top_margin:top_margin+self.image_height, left_margin:left_margin+self.image_width
@@ -323,7 +320,6 @@ class DataLoadPreprocess(Dataset):
             depth_gt = np.asarray(depth_gt, dtype=np.float32)
             depth_gt = np.expand_dims(depth_gt, axis=2)
             depth_gt = depth_gt / self.depth_normalizer
-            image = np.concatenate([image, sam_feats], axis=2)
             image, depth_gt, intrinsics = self.train_preprocess(image, depth_gt, intrinsics)
             sam_feats = image[..., 3:]
             image = image[..., :3]
