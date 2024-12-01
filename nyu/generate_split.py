@@ -1,5 +1,4 @@
 import os
-import math
 
 # FOCAL_LENGTH = 518.8579 # this is a model param for adabins
 DATA_DIR = "/mnt/remote/shared_data/datasets/nyu_depth_v2_sync/"

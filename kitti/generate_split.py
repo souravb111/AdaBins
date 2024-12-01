@@ -1,7 +1,5 @@
-import os
 from pathlib import Path
 import csv
-from copy import deepcopy
 import random
 
 mini = False
