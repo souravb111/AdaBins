@@ -30,19 +30,12 @@ class DecoderBN(nn.Module):
         features = int(num_features)
 
         self.conv2 = nn.Conv2d(bottleneck_features, features, kernel_size=1, stride=1, padding=1)
-        # self.intrinsics_mlp = nn.Sequential(nn.Linear(4, 16),
-        #                                     nn.LayerNorm(16),
-        #                                     nn.LeakyReLU(),
-        #                                     nn.Linear(16, 16))
-
         self.up1 = UpSampleBN(skip_input=features // 1 + 112 + 64, output_features=features // 2)
         self.up2 = UpSampleBN(skip_input=features // 2 + 40 + 24, output_features=features // 4)
         self.up3 = UpSampleBN(skip_input=features // 4 + 24 + 16, output_features=features // 8)
         self.up4 = UpSampleBN(skip_input=features // 8 + 16 + 8, output_features=features // 16)
 
-        #         self.up5 = UpSample(skip_input=features // 16 + 3, output_features=features//16)
         self.conv3 = nn.Conv2d(features // 16, num_classes, kernel_size=3, stride=1, padding=1)
-        # self.act_out = nn.Softmax(dim=1) if output_activation == 'softmax' else nn.Identity()
 
         self.sam_bn = nn.BatchNorm2d(32)
 
@@ -51,29 +44,19 @@ class DecoderBN(nn.Module):
         x_block0, x_block1, x_block2, x_block3, x_block4 = features[4], features[5], features[6], features[8], features[
             11]
 
-        # _, _, bottleneck_h, bottleneck_w = x_block4.size()
-        # x_intri = intrinsics[:, [0, 0, 1, 1], [0, 2, 1, 2]].float() / 1e3
-        # x_intri = self.intrinsics_mlp(x_intri)[..., None, None].repeat(1, 1, bottleneck_h, bottleneck_w)
-        # x_block4 = torch.cat([x_block4, x_intri], dim=1)
-        
         x_d0 = self.conv2(x_block4)
 
         x_d1 = self.up1(x_d0, x_block3)
         x_d2 = self.up2(x_d1, x_block2)
         x_d3 = self.up3(x_d2, x_block1)
         x_d4 = self.up4(x_d3, x_block0)
-        #         x_d5 = self.up5(x_d4, features[0])
         out = self.conv3(x_d4)
         
         if USE_SAM:
             sam_features = torch.nn.functional.interpolate(sam_features, out.shape[2:], mode='bilinear', align_corners=True)
             sam_features = self.sam_bn(sam_features)
             out = torch.cat([out, sam_features], dim=1)
-        # out = self.act_out(out)
-        # if with_features:
-        #     return out, features[-1]
-        # elif with_intermediate:
-        #     return out, [x_block0, x_block1, x_block2, x_block3, x_block4, x_d1, x_d2, x_d3, x_d4]
+
         return out
 
 
@@ -114,10 +97,6 @@ class UnetAdaptiveBins(nn.Module):
         unet_out = self.decoder(self.encoder(x), intrinsics, **kwargs)
         bin_widths_normed, range_attention_maps = self.adaptive_bins_layer(unet_out)
         out = self.conv_out(range_attention_maps)
-
-        # Post process
-        # n, c, h, w = out.shape
-        # hist = torch.sum(out.view(n, c, h * w), dim=2) / (h * w)  # not used for training
 
         bin_widths = (self.max_val - self.min_val) * bin_widths_normed  # .shape = N, dim_out
         bin_widths = nn.functional.pad(bin_widths, (1, 0), mode='constant', value=self.min_val)

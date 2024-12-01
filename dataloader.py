@@ -68,25 +68,7 @@ def augment_long_range(
     intrinsics,
     alpha: float,
 ):
-    """Apply long range augmentation to all cameras.
-    - Performs a local optimization of alpha in range [alpha-0.1, alpha+0.1] to minimize padding for augmented image
-    - Augment intrinsics and extrinsics so that depth of projected lidar points is scaled by alpha in camera frame
-
-    Args:
-        image: dict of images from each camera for the last lidar bundle
-        alpha: scaling ratio for the image. Z-coordinate is scaled by (1/alpha)
-
-    Returns:
-        image: augmented dict of images from each camera for the last lidar bundle
-        camera_intrinsics: augmented intrinsics
-        camera_extrinsics: augmented extrinsics
-        alpha: locally optimized alpha
-    """
-    # img_colorized = (image * 255).astype(np.uint8)
-    # depth_map_colorized = cv2.applyColorMap(depth_map.astype(np.uint8), cv2.COLORMAP_TURBO) # img.shape = (x, y)
-    # depth_overlay = cv2.addWeighted(img_colorized, 0.5, depth_map_colorized, 0.5, 0.0)
-    # cv2.imwrite("depth_orig.png", depth_overlay)
-
+    """Apply long range augmentation. Augment intrinsics and extrinsics so that depth of projected lidar points is scaled by alpha in camera frame"""
     # Get pixelwise image remappings
     def get_maps(_alpha, _intrinsics, _img_size):
         map_x1, map_y1 = np.meshgrid(np.arange(_img_size[1]), np.arange(_img_size[0]))
@@ -126,10 +108,6 @@ def augment_long_range(
         img_mapped = cv2.remap(img_mapped, map_x2, map_y2, cv2.INTER_LINEAR)
         depth_map_mapped = cv2.remap(depth_map_mapped, map_x2, map_y2, cv2.INTER_NEAREST)
 
-    # img_colorized = (img_mapped * 255).astype(np.uint8)
-    # depth_map_colorized = cv2.applyColorMap(depth_map_mapped.astype(np.uint8), cv2.COLORMAP_TURBO) # img.shape = (x, y)
-    # depth_overlay = cv2.addWeighted(img_colorized, 0.5, depth_map_colorized, 0.5, 0.0)
-    # cv2.imwrite("depth.png", depth_overlay)
     return img_mapped, depth_map_mapped, intrinsics
 
 
@@ -139,20 +117,7 @@ def augment_long_range_tensors(
     intrinsics,
     alpha: float,
 ):
-    """Apply long range augmentation to all cameras.
-    - Performs a local optimization of alpha in range [alpha-0.1, alpha+0.1] to minimize padding for augmented image
-    - Augment intrinsics and extrinsics so that depth of projected lidar points is scaled by alpha in camera frame
-
-    Args:
-        image: dict of images from each camera for the last lidar bundle
-        alpha: scaling ratio for the image. Z-coordinate is scaled by (1/alpha)
-
-    Returns:
-        image: augmented dict of images from each camera for the last lidar bundle
-        camera_intrinsics: augmented intrinsics
-        camera_extrinsics: augmented extrinsics
-        alpha: locally optimized alpha
-    """
+    """Same as augment_long_range but works on tensor inputs. Intended to be used on the inputs after collate_fn"""
     batch_size = image.size(0)
     new_image, new_depth_map, new_intrinsics = [], [], []
     for bi in range(batch_size):
@@ -175,7 +140,6 @@ class DepthDataLoader(object):
         dataset_cls = BothDatasets if args.both_data else DataLoadPreprocess
         collate = collate_both if args.both_data else None
         if mode == 'train':
-            #self.training_samples = DataLoadPreprocess(args, mode, transform=preprocessing_transforms(mode))
             self.training_samples = dataset_cls(args, mode, transform=preprocessing_transforms(mode))
             if args.distributed:
                 self.train_sampler = torch.utils.data.distributed.DistributedSampler(self.training_samples)
@@ -192,13 +156,8 @@ class DepthDataLoader(object):
                                    )
 
         elif mode == 'eval':
-            #self.testing_samples = DataLoadPreprocess(args, mode, transform=preprocessing_transforms(mode))
             self.testing_samples = dataset_cls(args, mode, transform=preprocessing_transforms(mode))
-            if args.distributed:  # redundant. here only for readability and to be more explicit
-                # Give whole test set to all processes (and perform/report evaluation only on one) regardless
-                self.eval_sampler = None
-            else:
-                self.eval_sampler = None
+            self.eval_sampler = None
             self.data = DataLoader(self.testing_samples, 1,
                                    shuffle=False,
                                    num_workers=8,
@@ -291,7 +250,6 @@ class DataLoadPreprocess(Dataset):
         
         return np.transpose(sam_feats[0], (1, 2 , 0)).astype(np.float32)
 
-
     def _getitem__(self, idx):
         raw_path = self.raw_paths[idx]
         gt_path = self.gt_paths[idx]
@@ -330,12 +288,6 @@ class DataLoadPreprocess(Dataset):
                 sam_feats = self._load_nyu_sam_feats(raw_path)[45:472, 43:608]
                 
         if self.mode == 'train':
-            # if self.args.do_random_rotate is True:
-            #     random_angle = (random.random() - 0.5) * 2 * self.args.degree
-            #     image = self.rotate_image(image, random_angle)
-            #     depth_gt = self.rotate_image(depth_gt, random_angle, flag=Image.NEAREST)
-
-            # image, depth_gt = self.random_crop(image, depth_gt, self.image_height, self.args.image_width)
             image = np.asarray(image, dtype=np.float32) / 255.0
             if USE_SAM:
                 image = np.concatenate((image, sam_feats), axis=-1)
@@ -382,39 +334,17 @@ class DataLoadPreprocess(Dataset):
         Returns:
             image_aug, depth_gt_aug
         """
-        # # Random flipping
-        # do_flip = random.random()
-        # if do_flip > 0.5:
-        #     image = (image[:, ::-1, :]).copy()
-        #     depth_gt = (depth_gt[:, ::-1, :]).copy()
-
         # Random gamma, brightness, color augmentation
         do_augment = random.random()
         if do_augment > 0.5:
             image[...,:3] = self.augment_image(image[...,:3])
 
-        # rank = torch.distributed.get_rank() if torch.distributed.is_initialized() else 0
-        # if rank == 1:
-        #     new_h, new_w = image.shape[0]*3//4, image.shape[1]*3//4
-        #     image = cv2.resize(image, dsize=(new_w, new_h), interpolation=cv2.INTER_LINEAR)
-        #     depth = cv2.resize(depth_gt, dsize=(new_w, new_h), interpolation=cv2.INTER_NEAREST)
-        #     intrinsics *= 0.5
-        #     intrinsics[2, 2] = 1
+        # NOTE(carter): moved to train.py because samples in the same batch must be re-scaled with the same alpha
+        # Long range augmentation
         # do_resize = random.random()
         # if rank == 1 and do_resize > 0.5:
         #     print(f"Augmented")
         #     image, depth_gt, intrinsics = augment_long_range(image, depth_gt, intrinsics, alpha=1.5)
-            
-        # do_resize = random.random()
-        # if do_resize > 0.5:
-        #     if do_resize > 0.75:
-        #         new_h, new_w = image.shape[0]*2//3, image.shape[1]*2//3
-        #     else:
-        #         new_h, new_w = image.shape[0]*3//4, image.shape[1]*3//4
-        #     image = cv2.resize(image, dsize=(new_w, new_h), interpolation=cv2.INTER_LINEAR)
-        #     depth = cv2.resize(depth_gt, dsize=(new_w, new_h), interpolation=cv2.INTER_NEAREST)
-        #     intrinsics *= 0.5
-        #     intrinsics[2, 2] = 1
             
         return image, depth_gt, intrinsics
 
@@ -468,7 +398,6 @@ class ToTensor(object):
         if self.mode == 'train':
             return {f'image_{dataset}': image, f'depth_{dataset}': depth, 'focal': focal, f'depth_mask_{dataset}': depth_mask, 'intrinsics': intrinsics}
         else:
-            #return {f'image_{dataset}': image, f'depth_{dataset}': depth, 'focal': focal, 'image_path': sample['image_path'], 'depth_path': sample['depth_path'], f'depth_mask_{dataset}': depth_mask, 'intrinsics': intrinsics}
             return {f'image': image, f'depth': depth, 'focal': focal, 'image_path': sample['image_path'], 'depth_path': sample['depth_path'], f'depth_mask': depth_mask, 'intrinsics': intrinsics}
 
     def to_tensor(self, pic):

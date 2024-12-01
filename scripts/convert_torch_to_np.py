@@ -1,7 +1,6 @@
-import numpy as np
 import os
 import torch
-from fast_np import save, load
+from fast_np import save
 import sys
 
 with open("nyu/nyu_depth_v2_train.csv") as f:

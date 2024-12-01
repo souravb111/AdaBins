@@ -70,25 +70,10 @@ def compute_errors(gt, pred, eval_range=None):
     }
 
 
-# def denormalize(x, device='cpu'):
-#     mean = torch.Tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1).to(device)
-#     std = torch.Tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1).to(device)
-#     return x * std + mean
-#
 def predict_tta(model, image, intrinsics, args):
     pred = model(image, intrinsics)[-1]
-    #     pred = utils.depth_norm(pred)
-    #     pred = nn.functional.interpolate(pred, depth.shape[-2:], mode='bilinear', align_corners=True)
-    #     pred = np.clip(pred.cpu().numpy(), 10, 1000)/100.
     pred = np.clip(pred.detach().cpu().numpy(), args.min_depth_eval, args.max_depth_eval)
 
-    # image = torch.Tensor(np.array(image.detach().cpu().numpy())[..., ::-1].copy()).to(device)
-    # pred_lr = model(image)[-1]
-    # #     pred_lr = utils.depth_norm(pred_lr)
-    # #     pred_lr = nn.functional.interpolate(pred_lr, depth.shape[-2:], mode='bilinear', align_corners=True)
-    # #     pred_lr = np.clip(pred_lr.cpu().numpy()[...,::-1], 10, 1000)/100.
-    # pred_lr = np.clip(pred_lr.detach().cpu().numpy()[..., ::-1], args.min_depth_eval, args.max_depth_eval)
-    # final = 0.5 * (pred + pred_lr)
     final = pred
     final = nn.functional.interpolate(torch.Tensor(final), image.shape[-2:], mode='bilinear', align_corners=True)
     return torch.Tensor(final)
@@ -105,8 +90,7 @@ def eval(model, test_loader, args, gpus=None, ):
 
     distance_buckets = KITTI_DISTANCE_BUCKETS if args.dataset == 'kitti' else NYU_DISTANCE_BUCKETS
     metrics = RunningAverageDict()
-    # crop_size = (471 - 45, 601 - 41)
-    # bins = utils.get_bins(100)
+
     total_invalid = 0
     with torch.no_grad():
         model.eval()
@@ -121,8 +105,6 @@ def eval(model, test_loader, args, gpus=None, ):
             final = predict_tta(model, image, intrinsics, args)
             final = final.squeeze().cpu().numpy()
 
-            # final[final < args.min_depth] = args.min_depth
-            # final[final > args.max_depth] = args.max_depth
             final[np.isinf(final)] = args.max_depth_eval
             final[np.isnan(final)] = args.min_depth_eval
 
@@ -136,9 +118,6 @@ def eval(model, test_loader, args, gpus=None, ):
                     impath = impath.split('.')[0]
                     factor = 256
 
-                # rgb_path = os.path.join(rgb_dir, f"{impath}.png")
-                # tf.ToPILImage()(denormalize(image.squeeze().unsqueeze(0).cpu()).squeeze()).save(rgb_path)
-
                 pred_path = os.path.join(args.save_dir, f"{impath}.png")
                 pred = (final * factor) # .astype('uint16')
                 pred_uint8 = ((pred / args.max_depth_eval) * 255).astype(np.uint8)
@@ -149,24 +128,9 @@ def eval(model, test_loader, args, gpus=None, ):
             gt = gt.squeeze().cpu().numpy()
             valid_mask = np.logical_and(gt > args.min_depth_eval, gt < args.max_depth_eval)
             eval_mask = np.ones(valid_mask.shape)
-            # if args.garg_crop or args.eigen_crop:
-            #     gt_height, gt_width = gt.shape
-            #     eval_mask = np.zeros(valid_mask.shape)
 
-            #     if args.garg_crop:
-            #         eval_mask[int(0.40810811 * gt_height):int(0.99189189 * gt_height),
-            #         int(0.03594771 * gt_width):int(0.96405229 * gt_width)] = 1
-
-            #     elif args.eigen_crop:
-            #         if args.dataset == 'kitti':
-            #             eval_mask[int(0.3324324 * gt_height):int(0.91351351 * gt_height),
-            #             int(0.0359477 * gt_width):int(0.96405229 * gt_width)] = 1
-            #         else:
-            #             eval_mask[45:471, 41:601] = 1
             valid_mask = np.logical_and(valid_mask, eval_mask)
             valid_mask = np.logical_and(valid_mask, gt_mask.numpy())
-            #             gt = gt[valid_mask]
-            #             final = final[valid_mask]
             
             metrics.update(compute_errors(gt[valid_mask], final[valid_mask]))
             for bucket_range in distance_buckets:
@@ -211,10 +175,6 @@ if __name__ == '__main__':
     parser.add_argument('--checkpoint_path', '--checkpoint-path', type=str, required=True,
                         help="checkpoint file to use for prediction")
     
-    # parser.add_argument('--eigen_crop', help='if set, crops according to Eigen NIPS14', action='store_true')
-    # parser.add_argument('--garg_crop', help='if set, crops according to Garg  ECCV16', action='store_true')
-    # parser.add_argument('--do_kb_crop', help='Use kitti benchmark cropping', action='store_true')
-
     if sys.argv.__len__() == 2:
         arg_filename_with_prefix = '@' + sys.argv[1]
         args = parser.parse_args([arg_filename_with_prefix])
@@ -222,7 +182,6 @@ if __name__ == '__main__':
         args = parser.parse_args()
 
     args.both_data = False
-    # args = parser.parse_args()
     args.gpu = int(args.gpu) if args.gpu is not None else 0
     args.distributed = False
     device = torch.device('cuda:{}'.format(args.gpu))

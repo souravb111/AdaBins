@@ -15,7 +15,6 @@ class PatchTransformerEncoder(nn.Module):
 
     def forward(self, x):
         embeddings = self.embedding_convPxP(x).flatten(2)  # .shape = n,c,s = n, embedding_dim, s
-        # embeddings = nn.functional.pad(embeddings, (1,0))  # extra special token at start ?
         embeddings = embeddings + self.positional_encodings[:embeddings.shape[2], :].T.unsqueeze(0)
 
         # change to S,N,E format required by transformer

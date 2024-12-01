@@ -1,3 +1,4 @@
+# From https://github.com/divideconcept/fastnumpyio
 import sys
 import numpy as np
 import numpy.lib.format
