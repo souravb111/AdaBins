@@ -23,12 +23,12 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 import torch.nn.functional as F
 from fast_np import load as load_np
-from models.unet_adaptive_bins import USE_SAM
 
 KITTI_DEPTH_MIN = 1e-3
 KITTI_DEPTH_MAX = 150
 NYU_DEPTH_MIN = 1e-3
 NYU_DEPTH_MAX = 10
+USE_SAM = os.environ.get("USE_SAM", False)
 
 def _is_pil_image(img):
     return isinstance(img, Image.Image)
@@ -321,10 +321,8 @@ class DataLoadPreprocess(Dataset):
             depth_gt = np.expand_dims(depth_gt, axis=2)
             depth_gt = depth_gt / self.depth_normalizer
             image, depth_gt, intrinsics = self.train_preprocess(image, depth_gt, intrinsics)
-            sam_feats = image[..., 3:]
-            image = image[..., :3]
             depth_gt_mask = np.logical_and(depth_gt > self.depth_min, depth_gt < self.depth_max)
-            sample = {'image': image, 'depth': depth_gt, 'focal': focal, 'depth_mask': depth_gt_mask, 'intrinsics': intrinsics, "sam_feats": sam_feats}
+            sample = {'image': image, 'depth': depth_gt, 'focal': focal, 'depth_mask': depth_gt_mask, 'intrinsics': intrinsics}
         else:
             image = np.asarray(image, dtype=np.float32) / 255.0
             if USE_SAM:
@@ -333,7 +331,7 @@ class DataLoadPreprocess(Dataset):
             depth_gt = np.expand_dims(depth_gt, axis=2)
             depth_gt = depth_gt / self.depth_normalizer
             depth_gt_mask = np.logical_and(depth_gt > self.depth_min, depth_gt < self.depth_max)
-            sample = {'image': image, 'depth': depth_gt, 'focal': focal, 'image_path': raw_path, 'depth_path': gt_path, 'depth_mask': depth_gt_mask, 'intrinsics': intrinsics, 'sam_feats': sam_feats}
+            sample = {'image': image, 'depth': depth_gt, 'focal': focal, 'image_path': raw_path, 'depth_path': gt_path, 'depth_mask': depth_gt_mask, 'intrinsics': intrinsics}
 
         if self.transform:
             sample = self.transform(sample)

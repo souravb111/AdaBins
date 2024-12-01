@@ -35,8 +35,9 @@ PROJECT = "adabins"
 logging = True
 logging_print_interval = 5
 logging_vis_interval = 3000
-if os.environ.get("DISABLE_LOGGING"):
+if os.environ.get("DISABLE_LOGGING", False):
     logging = False
+USE_LONG_RANGE_AUG = os.environ.get("USE_LONG_RANGE_AUG", False)
 
 def is_rank_zero(args):
     return args.rank == 0
@@ -168,7 +169,6 @@ def train(model, args, epochs=10, experiment_name="DeepLab", lr=0.0001, root="."
         scheduler.step(args.epoch + 1)
     ################################################################################################
 
-    # max_iter = len(train_loader) * epochs
     for epoch in range(args.epoch, epochs):
         ################################# Train loop ##########################################################
         if should_log: wandb.log({"Epoch": epoch}, step=step)
@@ -178,15 +178,14 @@ def train(model, args, epochs=10, experiment_name="DeepLab", lr=0.0001, root="."
 
             
             def _forward(dataset):
-                if batch[f"image_{dataset}"] is None:
+                if f'image_{dataset}' not in batch or batch[f"image_{dataset}"] is None:
                     return 0, 0, 0
 
                 img = batch[f'image_{dataset}']
                 depth = batch[f'depth_{dataset}']
                 depth_mask = batch[f'depth_mask_{dataset}']
 
-                # if NYU, augment long range, can't use name since we hacked it in collate
-                if train_loader.dataset.dataset_type != 'both' or (train_loader.dataset.dataset_type == 'both' and img.shape[-1] < 900):
+                if USE_LONG_RANGE_AUG and (train_loader.dataset.dataset_type != 'both' or (train_loader.dataset.dataset_type == 'both' and img.shape[-1] < 900)):
                     alpha =  torch.rand(1).item() * 0.333333333 + 1
                     # dummy, use real intrinsics if needed
                     intr = NYU_INTR[None, ...].expand(img.shape[0], -1, -1)
@@ -241,7 +240,6 @@ def train(model, args, epochs=10, experiment_name="DeepLab", lr=0.0001, root="."
                 if should_log: 
                     wandb.log({
                         f"Test/{criterion_ueff.name}": val_si.get_value(),
-                        # f"Test/{criterion_bins.name}": val_bins.get_value()
                     }, step=step)
 
                     wandb.log({f"Metrics/{k}": v for k, v in metrics.items()}, step=step)

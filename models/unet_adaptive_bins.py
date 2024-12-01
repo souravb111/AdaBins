@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from .miniViT import mViT
 
 
-USE_SAM = False
+USE_SAM = os.environ.get("USE_SAM", False)
 
 class UpSampleBN(nn.Module):
     def __init__(self, skip_input, output_features):
@@ -40,6 +40,7 @@ class DecoderBN(nn.Module):
         self.sam_bn = nn.BatchNorm2d(32)
 
     def forward(self, features, intrinsics=None, sam_features=None):
+        features, sam_features = features
         x_block0, x_block1, x_block2, x_block3, x_block4 = features[4], features[5], features[6], features[8], features[
             11]
 
@@ -93,8 +94,8 @@ class UnetAdaptiveBins(nn.Module):
         self.conv_out = nn.Sequential(nn.Conv2d(128, n_bins, kernel_size=1, stride=1, padding=0),
                                       nn.Softmax(dim=1))
 
-    def forward(self, x, intrinsics, sam_feats, **kwargs):
-        unet_out = self.decoder(self.encoder(x), intrinsics=intrinsics, sam_feats=sam_feats, **kwargs)
+    def forward(self, x, intrinsics, **kwargs):
+        unet_out = self.decoder(self.encoder(x), intrinsics=intrinsics, **kwargs)
         bin_widths_normed, range_attention_maps = self.adaptive_bins_layer(unet_out)
         out = self.conv_out(range_attention_maps)
 
