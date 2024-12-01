@@ -205,8 +205,9 @@ class DataLoadPreprocess(Dataset):
         self.eval = eval
         self.image_height, self.image_width = None, None
         
-        assert self.args.dataset in ['nyu', 'kitti']
-        if self.args.dataset == 'nyu':
+        self.dataset_type = args.dataset
+        assert self.dataset_type in ['nyu', 'kitti']
+        if self.dataset_type == 'nyu':
             # NOTE(james) - the matlab script I borrowed dumps 16bit depth
             # https://github.com/wangq95/NYUd2-Toolkit
             # NOTE(carter) - NYU preprocessing assigns max depth to invalid values
@@ -217,7 +218,7 @@ class DataLoadPreprocess(Dataset):
                                         [0, 5.1946961112127485e+02, 2.5373616633400465e+02],
                                         [0, 0, 1]])
 
-        elif self.args.dataset == 'kitti':
+        elif self.dataset_type == 'kitti':
             self.depth_normalizer = 256.0
             self.depth_min = KITTI_DEPTH_MIN
             self.depth_max = KITTI_DEPTH_MAX
@@ -492,6 +493,7 @@ class BothDatasets(Dataset):
         self.to_tensor = ToTensor
         self.eval = eval
         self.image_height, self.image_width = None, None
+        self.dataset_type = "both"
         
         kitti_raw_paths, kitti_gt_paths = self._get_kitti_paths()
         nyu_raw_paths, nyu_gt_paths = self._get_nyu_paths()

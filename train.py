@@ -56,15 +56,10 @@ def colorize(value, vmin=10, vmax=1000, cmap='plasma'):
     else:
         # Avoid 0-division
         value = value * 0.
-    # squeeze last dim if it exists
-    # value = value.squeeze(axis=0)
-
     cmapper = matplotlib.cm.get_cmap(cmap)
     value = cmapper(value, bytes=True)  # (nxmx4)
 
     img = value[:, :, :3]
-
-    #     return img.transpose((2, 0, 1))
     return img
 
 
@@ -134,8 +129,6 @@ def train(model, args, epochs=10, experiment_name="DeepLab", lr=0.0001, root="."
     should_log = should_write and logging
     if should_log:
         tags = args.tags.split(',') if args.tags != '' else None
-        # if args.dataset != 'nyu':
-        #     PROJECT = PROJECT + f"-{args.dataset}"
         wandb.init(project=PROJECT, name=name, config=args, dir=args.root, tags=tags, notes=args.notes)
         wandb.watch(model)
     ################################################################################################
@@ -171,11 +164,6 @@ def train(model, args, epochs=10, experiment_name="DeepLab", lr=0.0001, root="."
 
     ###################################### Scheduler ###############################################
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=len(train_loader) * epochs, eta_min=lr/100., last_epoch=args.last_epoch)
-    # scheduler = optim.lr_scheduler.OneCycleLR(optimizer, lr, epochs=epochs, steps_per_epoch=len(train_loader),
-    #                                           cycle_momentum=True,
-    #                                           base_momentum=0.85, max_momentum=0.95, last_epoch=args.last_epoch,
-    #                                           div_factor=args.div_factor,
-    #                                           final_div_factor=args.final_div_factor)
     if args.resume != '' and scheduler is not None:
         scheduler.step(args.epoch + 1)
     ################################################################################################
@@ -198,7 +186,7 @@ def train(model, args, epochs=10, experiment_name="DeepLab", lr=0.0001, root="."
                 depth_mask = batch[f'depth_mask_{dataset}']
 
                 # if NYU, augment long range, can't use name since we hacked it in collate
-                if img.shape[-1] < 900:
+                if train_loader.dataset.dataset_type != 'both' or (train_loader.dataset.dataset_type == 'both' and img.shape[-1] < 900):
                     alpha =  torch.rand(1).item() * 0.333333333 + 1
                     # dummy, use real intrinsics if needed
                     intr = NYU_INTR[None, ...].expand(img.shape[0], -1, -1)
@@ -223,27 +211,6 @@ def train(model, args, epochs=10, experiment_name="DeepLab", lr=0.0001, root="."
                 num = img.shape[0]
                 return loss * num, l_dense * num, l_chamfer * num
             
-            if 0:
-                def _norm(t):
-                    mi, ma = t.min(), t.max()
-                    mid = 0.5 * (mi + ma)
-                    rg = ma - mi
-
-                    t = (t - mid) / rg + 0.5
-                    return t
-
-                import PIL
-                img_ = img[0].permute(1, 2, 0)
-                rgb = _norm(img_[..., :3]).numpy()
-                sam_feats = _norm(img_[..., 3:].norm(2, -1)).numpy()
-
-                rgb = (255 * rgb).astype(np.uint8)
-                sam_feats = (255 * sam_feats).astype(np.uint8)
-
-                PIL.Image.fromarray(rgb).save(f"viz/{i}_rgb.png")
-                PIL.Image.fromarray(sam_feats).save(f"viz/{i}_sf.png")
-            
-
             loss, l_dense, l_chamfer = _forward("kitti")
             loss2, l_dense2, l_chamfer2 = _forward("nyu")
             loss = (loss + loss2) / args.bs
