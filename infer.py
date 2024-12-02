@@ -65,7 +65,7 @@ class ToTensor(object):
 
 
 class InferenceHelper:
-    def __init__(self, checkpoint, dataset='nyu', device='cuda:0'):
+    def __init__(self, checkpoint, dataset='nyu', device='cuda:0', model_dataset=None):
         self.toTensor = ToTensor()
         self.device = device
         if dataset == 'nyu':
@@ -83,6 +83,12 @@ class InferenceHelper:
         else:
             raise ValueError("dataset can be either 'nyu' or 'kitti' but got {}".format(dataset))
 
+        if model_dataset is None:
+            model_dataset = dataset
+        if model_dataset == 'nyu':
+            model = UnetAdaptiveBins.build(n_bins=256, min_val=NYU_DEPTH_MIN, max_val=NYU_DEPTH_MAX)
+        elif model_dataset == 'kitti':
+            model = UnetAdaptiveBins.build(n_bins=256, min_val=KITTI_DEPTH_MIN, max_val=KITTI_DEPTH_MAX)
         model, _, _ = model_io.load_checkpoint(pretrained_path, model)
         model.eval()
         self.model = model.to(self.device)
@@ -161,15 +167,16 @@ if __name__ == '__main__':
     from time import time
     # checkpoint = "/home/cfang/AdaBins/checkpoints/kitti_150_lr_aug.py"
     # checkpoint = "/mnt/remote/shared_data/users/cfang/AdaBins/checkpoints/kitti_150_baseline.pt"
-    checkpoint = "/mnt/remote/shared_data/users/jtu/adabins/nyu_base/nyu_base_21-Nov_13-58-nodebs8-tep3-lr0.0001-wd0.1-1c17b213-cb62-4595-902e-ca18830d23ae_latest.pt"
+    checkpoint = "/mnt/remote/shared_data/users/jtu/adabins/both_10pct_kitti/train_nyu_and_kitti10pct_23-Nov_14-19-nodebs8-tep3-lr0.0001-wd0.1-094119e9-1f99-4329-a877-e3928e0ec2a0_latest.pt"
     dataset = "nyu"
+    # dataset = "kitti"
     filenames_file_eval = "/home/james/AdaBins/nyu/nyu_depth_v2_val.csv"
     # filenames_file_eval = "/home/james/AdaBins/kitti/kitti_val.csv"
     num_samples = 10
-    out_dir = "/mnt/remote/shared_data/users/cfang/viz_nyu_baseline"
+    out_dir = "/mnt/remote/shared_data/users/cfang/viz_nyu_10pct"
     os.makedirs(out_dir, exist_ok=True)
     
-    inferHelper = InferenceHelper(checkpoint=checkpoint, dataset=dataset)
+    inferHelper = InferenceHelper(checkpoint=checkpoint, dataset=dataset, model_dataset='kitti')
     
     with open(filenames_file_eval, 'r') as f:
         raw_gt_tuples = f.readlines()
