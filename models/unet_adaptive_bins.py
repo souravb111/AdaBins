@@ -41,6 +41,7 @@ class DecoderBN(nn.Module):
         #         self.up5 = UpSample(skip_input=features // 16 + 3, output_features=features//16)
         self.conv3 = nn.Conv2d(features // 16, num_classes, kernel_size=3, stride=1, padding=1)
         # self.act_out = nn.Softmax(dim=1) if output_activation == 'softmax' else nn.Identity()
+        self.sam_bn = nn.BatchNorm2d(32)
 
     def forward(self, features, intrinsics=None, sam_feats=None):
         x_block0, x_block1, x_block2, x_block3, x_block4 = features[4], features[5], features[6], features[8], features[
@@ -61,6 +62,7 @@ class DecoderBN(nn.Module):
         out = self.conv3(x_d4)
         with torch.no_grad():
             sam_feats = torch.nn.functional.interpolate(sam_feats, out.shape[2:], mode='nearest').detach().to(out.device)
+            sam_feats = self.sam_bn(sam_feats)
         out = torch.cat([out, sam_feats], dim=1)
         
         # out = self.act_out(out)

@@ -202,14 +202,14 @@ def train(model, args, epochs=10, experiment_name="DeepLab", lr=0.0001, root="."
             intrinsics = batch['intrinsics']
             sam_feats = batch['sam_feats']
 
-            # Long range augmentation
-            alpha = random.choice([1, 1, 1, 1, 1.40])
-            if alpha != 1:
-                img_and_sam = torch.cat([img, sam_feats], dim=1)
-                img_and_sam_aug, depth, intrinsics = augment_long_range_tensors(img_and_sam, depth, intrinsics, alpha=alpha)
-                img = img_and_sam_aug[:, :3, ...]
-                sam_feats = img_and_sam_aug[:, 3:, ...]
-                depth_mask = torch.logical_and(depth > args.min_depth, depth < args.max_depth)
+            # # Long range augmentation
+            # alpha = random.choice([1, 1, 1, 1, 1.40])
+            # if alpha != 1:
+            #     img_and_sam = torch.cat([img, sam_feats], dim=1)
+            #     img_and_sam_aug, depth, intrinsics = augment_long_range_tensors(img_and_sam, depth, intrinsics, alpha=alpha)
+            #     img = img_and_sam_aug[:, :3, ...]
+            #     sam_feats = img_and_sam_aug[:, 3:, ...]
+            #     depth_mask = torch.logical_and(depth > args.min_depth, depth < args.max_depth)
             
             img = img.to(device)
             depth = depth.to(device)
