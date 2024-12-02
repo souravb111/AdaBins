@@ -1,4 +1,5 @@
 import torch
+import os
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -37,7 +38,10 @@ class DecoderBN(nn.Module):
 
         self.conv3 = nn.Conv2d(features // 16, num_classes, kernel_size=3, stride=1, padding=1)
 
-        self.sam_bn = nn.BatchNorm2d(32)
+        if USE_SAM:
+            self.sam_bn = nn.BatchNorm2d(32)
+        else:
+            self.sam_bn = None
 
     def forward(self, features, intrinsics=None, sam_features=None):
         features, sam_features = features
@@ -94,7 +98,7 @@ class UnetAdaptiveBins(nn.Module):
         self.conv_out = nn.Sequential(nn.Conv2d(128, n_bins, kernel_size=1, stride=1, padding=0),
                                       nn.Softmax(dim=1))
 
-    def forward(self, x, intrinsics, **kwargs):
+    def forward(self, x, intrinsics=None, **kwargs):
         unet_out = self.decoder(self.encoder(x), intrinsics=intrinsics, **kwargs)
         bin_widths_normed, range_attention_maps = self.adaptive_bins_layer(unet_out)
         out = self.conv_out(range_attention_maps)

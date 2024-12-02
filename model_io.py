@@ -68,5 +68,5 @@ def load_checkpoint(fpath, model, optimizer=None):
         else:
             modified[k] = v  # else keep the original
 
-    model.load_state_dict(modified)
+    model.load_state_dict(modified, strict=False)
     return model, optimizer, epoch

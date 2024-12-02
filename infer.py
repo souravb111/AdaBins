@@ -160,10 +160,14 @@ if __name__ == '__main__':
     import matplotlib.pyplot as plt
     from time import time
     # checkpoint = "/home/cfang/AdaBins/checkpoints/kitti_150_lr_aug.py"
-    checkpoint = "/mnt/remote/shared_data/users/cfang/AdaBins/checkpoints/kitti_150_baseline.pt"
-    dataset = "kitti"
-    filenames_file_eval = "/home/james/AdaBins/kitti/kitti_val.csv"
+    # checkpoint = "/mnt/remote/shared_data/users/cfang/AdaBins/checkpoints/kitti_150_baseline.pt"
+    checkpoint = "/mnt/remote/shared_data/users/jtu/adabins/nyu_base/nyu_base_21-Nov_13-58-nodebs8-tep3-lr0.0001-wd0.1-1c17b213-cb62-4595-902e-ca18830d23ae_latest.pt"
+    dataset = "nyu"
+    filenames_file_eval = "/home/james/AdaBins/nyu/nyu_depth_v2_val.csv"
+    # filenames_file_eval = "/home/james/AdaBins/kitti/kitti_val.csv"
     num_samples = 10
+    out_dir = "/mnt/remote/shared_data/users/cfang/viz_nyu_baseline"
+    os.makedirs(out_dir, exist_ok=True)
     
     inferHelper = InferenceHelper(checkpoint=checkpoint, dataset=dataset)
     
@@ -173,6 +177,7 @@ if __name__ == '__main__':
         raw_paths = [p.replace('\n', '') for p in raw_paths]
         gt_paths = [p.replace('\n', '') for p in gt_paths]
     
+    torch.manual_seed(1)
     rand_perm = torch.randperm(len(raw_paths))
     for i in range(num_samples):
         idx = rand_perm[i].item()
@@ -186,16 +191,16 @@ if __name__ == '__main__':
         ax.axis('off')
         # ax.set_title("Input")
         
-        ax = fig.add_subplot(312)
-        ax.imshow(pred.squeeze(), cmap='inferno')
-        ax.axis('off')
-        # ax.set_title("Pred")
-        
         depth_gt = np.array(Image.open(gt_path)) / 256.0
-        ax = fig.add_subplot(313)
+        ax = fig.add_subplot(312)
+        # ax.set_title("Pred")
         ax.imshow(depth_gt, cmap='magma_r')
         ax.axis('off')
         
-        plt.savefig(f"viz_imgs/output_{i}.jpg")
+        ax = fig.add_subplot(313)
+        ax.imshow(pred.squeeze(), cmap='inferno')
+        ax.axis('off')
+
+        plt.savefig(f"{out_dir}/output_{i}.jpg")
         plt.close(fig)
     
