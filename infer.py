@@ -194,7 +194,7 @@ if __name__ == '__main__':
         depth_gt = np.array(Image.open(gt_path)) / 256.0
         ax = fig.add_subplot(312)
         # ax.set_title("Pred")
-        ax.imshow(depth_gt, cmap='magma_r')
+        ax.imshow(depth_gt, cmap='inferno')
         ax.axis('off')
         
         ax = fig.add_subplot(313)
