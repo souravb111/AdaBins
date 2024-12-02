@@ -176,6 +176,7 @@ if __name__ == '__main__':
         raw_paths = [p.replace('\n', '') for p in raw_paths]
         gt_paths = [p.replace('\n', '') for p in gt_paths]
     
+    torch.manual_seed(1)
     rand_perm = torch.randperm(len(raw_paths))
     for i in range(num_samples):
         idx = rand_perm[i].item()
