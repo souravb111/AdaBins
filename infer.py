@@ -7,11 +7,14 @@ import torch.nn as nn
 from PIL import Image
 from torchvision import transforms
 from tqdm import tqdm
+import debugpy
+import matplotlib.pyplot as plt
+from time import time
 
 import model_io
 import utils
 from models import UnetAdaptiveBins
-from dataloader import KITTI_DEPTH_MAX, KITTI_DEPTH_MIN, NYU_DEPTH_MAX, NYU_DEPTH_MIN
+from dataloader import KITTI_DEPTH_MAX, KITTI_DEPTH_MIN, NYU_DEPTH_MAX, NYU_DEPTH_MIN, BothDatasets
 
 
 def _is_pil_image(img):
@@ -94,11 +97,17 @@ class InferenceHelper:
         self.model = model.to(self.device)
 
     @torch.no_grad()
-    def predict_pil(self, pil_image, visualized=False):
+    def predict_pil(self, pil_image, sam_feats=None, visualized=False):
         # pil_image = pil_image.resize((640, 480))
         img = np.asarray(pil_image) / 255.
 
         img = self.toTensor(img).unsqueeze(0).float().to(self.device)
+        
+        if os.environ.get("USE_SAM"):
+            assert sam_feats is not None
+            sam_feats = torch.from_numpy(sam_feats).permute(2, 0, 1).unsqueeze(0).float().to(self.device)
+            img = torch.cat([img, sam_feats], dim=1)
+            
         bin_centers, pred = self.predict(img)
 
         if visualized:
@@ -154,28 +163,25 @@ class InferenceHelper:
 
             Image.fromarray(final.squeeze()).save(save_path)
 
-
+    
 if __name__ == '__main__':
-    import os
-    import debugpy
     if os.environ.get("ENABLE_DEBUGPY"):
         print("listening...")
         debugpy.listen(("127.0.0.1", 5678))
         debugpy.wait_for_client()
-        
-    import matplotlib.pyplot as plt
-    from time import time
-    # checkpoint = "/home/cfang/AdaBins/checkpoints/kitti_150_lr_aug.py"
-    # checkpoint = "/mnt/remote/shared_data/users/cfang/AdaBins/checkpoints/kitti_150_baseline.pt"
-    checkpoint = "/mnt/remote/shared_data/users/jtu/adabins/both_10pct_kitti/train_nyu_and_kitti10pct_23-Nov_14-19-nodebs8-tep3-lr0.0001-wd0.1-094119e9-1f99-4329-a877-e3928e0ec2a0_latest.pt"
-    dataset = "nyu"
-    # dataset = "kitti"
-    filenames_file_eval = "/home/james/AdaBins/nyu/nyu_depth_v2_val.csv"
-    # filenames_file_eval = "/home/james/AdaBins/kitti/kitti_val.csv"
-    num_samples = 10
-    out_dir = "/mnt/remote/shared_data/users/cfang/viz_nyu_10pct"
-    os.makedirs(out_dir, exist_ok=True)
+
+    checkpoint = "checkpoints/nyu_final"
     
+    # dataset = "nyu"
+    # filenames_file_eval = "/home/james/AdaBins/nyu/nyu_depth_v2_val.csv"
+    
+    dataset = "kitti"
+    filenames_file_eval = "/home/james/AdaBins/kitti/kitti_val.csv"
+    
+    num_samples = 10
+    out_dir = "/mnt/remote/shared_data/users/cfang/viz_nyu_10pct_kitti_lra_sam_bn_kitti"
+    
+    os.makedirs(out_dir, exist_ok=True)
     inferHelper = InferenceHelper(checkpoint=checkpoint, dataset=dataset, model_dataset='kitti')
     
     with open(filenames_file_eval, 'r') as f:
@@ -190,21 +196,30 @@ if __name__ == '__main__':
         idx = rand_perm[i].item()
         raw_path, gt_path = raw_paths[idx], gt_paths[idx]
         image = Image.open(raw_path)
+        
+        if os.environ.get("USE_SAM"):
+            if dataset == "nyu":
+                sam_feats = BothDatasets.load_nyu_sam_feats(raw_path)
+            else:
+                sam_feats = BothDatasets.load_kitti_sam_feats(raw_path)
+        else:
+            sam_feats = None
 
-        centers, pred = inferHelper.predict_pil(image)
+        centers, pred = inferHelper.predict_pil(image, sam_feats=sam_feats)
         fig = plt.figure(figsize=(10, 10))
         ax = fig.add_subplot(311)
         ax.imshow(image)
         ax.axis('off')
-        # ax.set_title("Input")
+        ax.set_title("Input")
         
         depth_gt = np.array(Image.open(gt_path)) / 256.0
         ax = fig.add_subplot(312)
-        # ax.set_title("Pred")
+        ax.set_title("GT")
         ax.imshow(depth_gt, cmap='inferno')
         ax.axis('off')
         
         ax = fig.add_subplot(313)
+        ax.set_title("Pred")
         ax.imshow(pred.squeeze(), cmap='inferno')
         ax.axis('off')
 

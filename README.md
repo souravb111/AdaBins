@@ -1,5 +1,8 @@
 # Generalisation of Monocular Depth Estimation to OOD Data Regimes
+![teaser](teaser.png)
 Forked from https://github.com/shariqfarooq123/AdaBins
+
+Project repository for CSC2529 project by Carter Fang, James Tu, and Sourav Biswas.
 
 ## Requirements
 Experiments were conducted with Python 3.9, CUDA 12.1 and PyTorch 2.5.1

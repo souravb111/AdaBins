@@ -232,13 +232,13 @@ class DataLoadPreprocess(Dataset):
             rand_idx = torch.randint(0, len(self), (1,)).item()
             return self.__getitem__(rand_idx)
     
-    def _load_nyu_sam_feats(self, raw_path: str) -> torch.Tensor:
+    def load_nyu_sam_feats(raw_path: str) -> torch.Tensor:
         sam_f_path = raw_path.replace("nyu_depth_v2_sync", "nyu_sam_feats_downsample").replace(".png", ".npy")
         sam_feats = np.load(sam_f_path)
         sam_feats = torch.nn.functional.interpolate(torch.from_numpy(sam_feats), scale_factor=4).permute(0,2,3,1).numpy()
         return sam_feats[0]
     
-    def _load_kitti_sam_feats(self, raw_path: str) -> torch.Tensor:
+    def load_kitti_sam_feats(raw_path: str) -> torch.Tensor:
         sam_feats_path = raw_path.replace("kitti-depth", "kitti-depth-sam-feats-np").replace(".png", ".h5")
         if not os.path.exists(sam_feats_path):
             sam_feats_path = raw_path.replace("kitti-depth", "kitti-depth-sam-feats-np").replace(".png", ".npy")
@@ -302,7 +302,7 @@ class DataLoadPreprocess(Dataset):
             image = image.crop((left_margin, top_margin, left_margin + 1216, top_margin + 352))
             depth_gt = depth_gt.crop((left_margin, top_margin, left_margin + 1216, top_margin + 352))
             if USE_SAM:
-                sam_feats = self._load_kitti_sam_feats(raw_path)[
+                sam_feats = self.load_kitti_sam_feats(raw_path)[
                     top_margin:top_margin+self.image_height, left_margin:left_margin+self.image_width
                 ] 
         else:
@@ -311,7 +311,7 @@ class DataLoadPreprocess(Dataset):
             self.image_height = 416
             self.image_width = 544
             if USE_SAM:
-                sam_feats = self._load_nyu_sam_feats(raw_path)[45:472, 43:608]
+                sam_feats = self.load_nyu_sam_feats(raw_path)[45:472, 43:608]
                 
         if self.mode == 'train':
             image = np.asarray(image, dtype=np.float32) / 255.0
@@ -502,13 +502,15 @@ class BothDatasets(Dataset):
         self.depth_max = 100
         # TODO intrinsics if needed
 
-    def _load_nyu_sam_feats(self, raw_path: str) -> torch.Tensor:
+    @staticmethod
+    def load_nyu_sam_feats(raw_path: str) -> torch.Tensor:
         sam_f_path = raw_path.replace("nyu_depth_v2_sync", "nyu_sam_feats_downsample").replace(".png", ".npy")
         sam_feats = np.load(sam_f_path)
         sam_feats = torch.nn.functional.interpolate(torch.from_numpy(sam_feats), scale_factor=4).permute(0,2,3,1).numpy()
         return sam_feats[0]
     
-    def _load_kitti_sam_feats(self, raw_path: str) -> torch.Tensor:
+    @staticmethod
+    def load_kitti_sam_feats(raw_path: str) -> torch.Tensor:
         sam_feats_path = raw_path.replace("kitti-depth", "kitti-depth-sam-feats-np").replace(".png", ".h5")
         if not os.path.exists(sam_feats_path):
             sam_feats_path = raw_path.replace("kitti-depth", "kitti-depth-sam-feats-np").replace(".png", ".npy")
@@ -554,7 +556,7 @@ class BothDatasets(Dataset):
             self.image_height = 352
             self.image_width = 1216
             if USE_SAM:
-                sam_feats = self._load_kitti_sam_feats(raw_path)[
+                sam_feats = self.load_kitti_sam_feats(raw_path)[
                     top_margin:top_margin+self.image_height, left_margin:left_margin+self.image_width
                 ]
         else:
@@ -563,7 +565,7 @@ class BothDatasets(Dataset):
             self.image_height = 416
             self.image_width = 544
             if USE_SAM:
-                sam_feats = self._load_nyu_sam_feats(raw_path)[45:472, 43:608]
+                sam_feats = self.load_nyu_sam_feats(raw_path)[45:472, 43:608]
 
 
         if self.mode == 'train':
